@@ -1,7 +1,7 @@
 MaxIDE
 ======
 
-BlitzMax development environment using the Win32-only Scintilla module by klepto2 and featuring autocomplete, code folding and undo/redo.
+BlitzMax development environment using the Win32-only Scintilla module by klepto2. Features auto complete, code folding, better undo/redo and cpp syntax highlighting. See changes.txt for more details.
 
 
 Monk
