@@ -1,0 +1,37 @@
+Changes log (markcwm/munch - Feb 2016):
+
+- scintilla gadget for ide options
+- scintilla gadget for code panels
+- keyword highlighting to code panels
+- scintilla undo/redo
+- empty undo when file loaded in Create:TOpenCode
+- fix: ToCString memory leaks in scintilla.mod
+- scintilla gadget for output window - ScintillaProps
+- set save point when file loaded
+- find in files and code view selecting wrong length in HighlightLine
+- autocapitalize breaking redo
+- code folding and indent guides - checkbox in ide options
+- fix: open last folder or current panel - checkbox in ide options
+- margin text color - panel gadget in ide options
+- matching braces syntax highlighting
+- fix: find not selecting highlighted text
+- fix: autocapitalize occuring in non-bmx files
+- fix: UpdateCursor breaking redo
+- bracket matching on mouse cursor causing edit
+- fix: no EVENT_GADGETSELECT in scintilla.mod
+- ctrl+shift+key inserting multi characters
+- fix: autocapitalize broken when syntax highlighting off
+- fix: ide options ok button causing edit
+- fix: bracket matching in non-bmx files
+- fix: extra newline on Enter - AutoIndent/FilterKey
+- auto complete - checkbox in ide options
+- enabled syntax highlighting on c/cpp/h/hpp
+- if open current panel when htmlview selected open bmxpath
+
+Todo:
+- readme with link to http://www.blitzmax.com/Community/posts.php?topic=103112
+- add option [] Unix line endings on all platforms?
+- if user enforces specific EOL-style convert loaded files upon saving?
+
+Need to reproduce:
+- undo/redo cursor position?
