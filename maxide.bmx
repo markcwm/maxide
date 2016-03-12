@@ -249,7 +249,7 @@ Type TToken
 	Field token$
 	Field help$
 	Field ref$	
-	Method create:TToken(t$,h$,r$)
+	Method Create:TToken(t$,h$,r$)
 		token=t
 		help=h
 		ref=r
@@ -261,7 +261,7 @@ Type TQuickHelp
 	Field map:TMap=New TMap	'key=lower(token) value=token:TToken
 		
 	Method AddCommand:TQuickHelp(t$,l$,a$)
-		map.Insert t.ToLower(),New TToken.create(t$,l$,a$)
+		map.Insert t.ToLower(),New TToken.Create(t$,l$,a$)
 	End Method
 	
 	Method Token$(cmd$)
@@ -280,18 +280,18 @@ Type TQuickHelp
 	End Method
 	
 	Function LoadCommandsTxt:TQuickHelp(bmxpath$)
-		Local	Text$
+		Local	text$
 		Local	qh:TQuickHelp
 		Local	i:Int,c,p,q
 		Local	token$,help$,anchor$
 		Try
-			Text=CacheAndLoadText(bmxpath+"/docs/html/Modules/commands.txt")
+			text=CacheAndLoadText(bmxpath+"/docs/html/Modules/commands.txt")
 		Catch exception:Object
 			Return Null
 		EndTry
-		If Not Text Return Null
+		If Not text Return Null
 		qh=New TQuickHelp
-		For Local l$ = EachIn Text.Split("~n")
+		For Local l$ = EachIn text.Split("~n")
 			For i=0 Until l.length
 				c=l[i]
 				If c=Asc("_") Continue
@@ -667,7 +667,7 @@ Type TAboutRequester Extends TRequester
 		Return 1
 	End Method
 	
-	Function create:TAboutRequester(host:TCodePlay)
+	Function Create:TAboutRequester(host:TCodePlay)
 		
 		Local abt:TAboutRequester = New TAboutRequester
 		abt.initrequester(host,"{{about_window_title}}",420,255,STYLE_CANCEL|STYLE_DIVIDER|STYLE_MODAL)
@@ -761,7 +761,7 @@ Type TCmdLineRequester Extends TRequester
 		ActivateGadget textfield
 	End Method
 
-	Function create:TCmdLineRequester(host:TCodePlay)
+	Function Create:TCmdLineRequester(host:TCodePlay)
 		Local	cmd:TCmdLineRequester = New TCmdLineRequester
 		cmd.initrequester(host,"{{cmdline_window_title}}",260,60,STYLE_OK|STYLE_CANCEL|STYLE_DIVIDER|STYLE_MODAL)
 		cmd.label=CreateLabel("{{cmdline_label_cmdline}}:",6,8,260,20,cmd.window)
@@ -779,12 +779,12 @@ Type TGotoRequester Extends TRequester
 	End Method
 
 	Method Poll()
-		Local	line,data,Text$
+		Local	line,data,text$
 		Select EventSource()
 			Case linenumber
 				If EventID() = EVENT_GADGETACTION
-					Text = GadgetText(linenumber)
-					If Text And (Int(Text) <> Text) Then SetGadgetText linenumber, Int(Text)
+					text = GadgetText(linenumber)
+					If text And (Int(text) <> text) Then SetGadgetText linenumber, Int(text)
 				EndIf
 			Case window
 				If EventID()=EVENT_WINDOWCLOSE
@@ -802,7 +802,7 @@ Type TGotoRequester Extends TRequester
 		Return 1
 	End Method
 
-	Function create:TGotoRequester(host:TCodePlay)
+	Function Create:TGotoRequester(host:TCodePlay)
 		Local	seek:TGotoRequester = New TGotoRequester
 		seek.initrequester(host,"{{goto_window_title}}",260,66,STYLE_OK|STYLE_CANCEL|STYLE_DIVIDER|STYLE_MODAL,"{{goto_btn_goto}}")
 		CreateLabel("{{goto_label_linenum}}:",6,8+4,114,20,seek.window)
@@ -910,7 +910,7 @@ Type TTextStyle
 		SetButtonState(underline,(flags&TEXTFORMAT_UNDERLINE <> 0))
 	End Method
 
-	Function create:TTextStyle(name$,xpos,ypos,window:TGadget)
+	Function Create:TTextStyle(name$,xpos,ypos,window:TGadget)
 		Local	s:TTextStyle
 		s=New TTextStyle
 		s.color=New TColor
@@ -1026,7 +1026,7 @@ Type TGadgetStyle
 		SetGadgetText fbutton,font_name+" : "+".".Join(tmpFloatText)+"pt"
 	End Method
 
-	Function create:TGadgetStyle(name$,xpos,ypos,window:TGadget)
+	Function Create:TGadgetStyle(name$,xpos,ypos,window:TGadget)
 		Local	s:TGadgetStyle
 		s=New TGadgetStyle
 		s.fg=New TColor
@@ -1445,7 +1445,7 @@ Type TOptionsRequester Extends TPanelRequester
 
 		w=optionspanel
 		
-		' changed ClientWidth(w)-12 -> ClientWidth(w)/2 except autohideout
+		' changed ClientWidth(w)-12 to ClientWidth(w)/2
 		buttons[0]=CreateButton("{{options_options_btn_showtoolbar}}",6,6,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
 		buttons[1]=CreateButton("{{options_options_btn_autorestore}}",6,34,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
 		buttons[2]=CreateButton("{{options_options_btn_autocaps}}",6,60,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
@@ -1479,12 +1479,12 @@ Type TOptionsRequester Extends TPanelRequester
 		Next
 		
 		styles=New TTextStyle[6]
-		styles[NORMAL]=TTextStyle.create("{{options_editor_label_plaintext}}:",6,66,w)
-		styles[COMMENT]=TTextStyle.create("{{options_editor_label_remarks}}:",6,96,w)
-		styles[QUOTED]=TTextStyle.create("{{options_editor_label_strings}}:",6,126,w)
-		styles[KEYWORD]=TTextStyle.create("{{options_editor_label_keywords}}:",6,156,w)
-		styles[NUMBER]=TTextStyle.create("{{options_editor_label_numbers}}:",6,186,w)
-		styles[MATCHING]=TTextStyle.create("{{options_editor_label_matchings}}:",6,216,w)
+		styles[NORMAL]=TTextStyle.Create("{{options_editor_label_plaintext}}:",6,66,w)
+		styles[COMMENT]=TTextStyle.Create("{{options_editor_label_remarks}}:",6,96,w)
+		styles[QUOTED]=TTextStyle.Create("{{options_editor_label_strings}}:",6,126,w)
+		styles[KEYWORD]=TTextStyle.Create("{{options_editor_label_keywords}}:",6,156,w)
+		styles[NUMBER]=TTextStyle.Create("{{options_editor_label_numbers}}:",6,186,w)
+		styles[MATCHING]=TTextStyle.Create("{{options_editor_label_matchings}}:",6,216,w)
 		
 ?Not Win32
 		textarea=CreateTextArea(6,250,ClientWidth(w)-12,ClientHeight(w)-256,w) ' TEXTAREA_READONLY
@@ -1494,8 +1494,8 @@ Type TOptionsRequester Extends TPanelRequester
 		SetGadgetText textarea,"'Sample Code~n~nresult = ((2.0 * 4) + 1)~nPrint( ~qResult: ~q + result )"
 		
 		w=toolpanel
-		outputstyle=TGadgetStyle.create("{{options_tools_label_output}}: ",6,6,w)
-		navstyle=TGadgetStyle.create("{{options_tools_label_navbar}}: ",6,66,w)
+		outputstyle=TGadgetStyle.Create("{{options_tools_label_output}}: ",6,6,w)
+		navstyle=TGadgetStyle.Create("{{options_tools_label_navbar}}: ",6,66,w)
 
 		SetDefaults()
 		SetPanel optionspanel
@@ -1503,7 +1503,7 @@ Type TOptionsRequester Extends TPanelRequester
 		SnapShot
 	End Method
 	
-	Function create:TOptionsRequester(host:TCodePlay)
+	Function Create:TOptionsRequester(host:TCodePlay)
 		Local	o:TOptionsRequester
 		o=New TOptionsRequester
 		o.InitOptionsRequester host
@@ -1547,7 +1547,7 @@ Type TFindRequester Extends TRequester
 		Return 1
 	End Method
 
-	Function create:TFindRequester(host:TCodePlay)
+	Function Create:TFindRequester(host:TCodePlay)
 		Local	seek:TFindRequester
 		seek=New TFindRequester
 		seek.initrequester(host,"{{find_window_title}}",280,66,STYLE_OK|STYLE_CANCEL|STYLE_DIVIDER|STYLE_MODAL,"{{find_btn_find}}")
@@ -1604,7 +1604,7 @@ Type TReplaceRequester Extends TRequester
 		Return 1
 	End Method
 
-	Function create:TReplaceRequester(host:TCodePlay)
+	Function Create:TReplaceRequester(host:TCodePlay)
 		Local x,y
 		Local	seek:TReplaceRequester
 		seek=New TReplaceRequester
@@ -2138,7 +2138,7 @@ Type THelpPanel Extends TToolPanel
 		HtmlViewBack htmlview
 	End Method
 
-	Function create:THelpPanel(host:TCodePlay)
+	Function Create:THelpPanel(host:TCodePlay)
 		Local	root,style
 		Local	p:THelpPanel = New THelpPanel
 		p.host=host
@@ -2345,7 +2345,7 @@ Type TSearchRequester Extends TRequester
 		Return True
 	EndMethod
 	
-	Function create:TSearchRequester(host:TCodePlay)
+	Function Create:TSearchRequester(host:TCodePlay)
 		Local	search:TSearchRequester = New TSearchRequester
 		search.initrequester(host,"{{search_window_title}}",440,280,STYLE_CANCEL|STYLE_DIVIDER|STYLE_OK|STYLE_STATUS|STYLE_RESIZABLE,strSearchText)
 		DisableGadget(search.ok)
@@ -2472,7 +2472,7 @@ Type TProjectRequester Extends TRequester
 		Show
 	End Method
 	
-	Function create:TProjectRequester(host:TCodePlay)
+	Function Create:TProjectRequester(host:TCodePlay)
 		Local x,y
 		Local	proj:TProjectRequester = New TProjectRequester
 	
@@ -2592,7 +2592,7 @@ EndRem
 		Show()
 	End Method
 	
-	Function create:TProjectProperties(host:TCodePlay)
+	Function Create:TProjectProperties(host:TCodePlay)
 		Local	proj:TProjectProperties = New TProjectProperties
 		proj.initrequester(host,"{{project_window_title}}",480,250,STYLE_OK|STYLE_CANCEL|STYLE_DIVIDER|STYLE_MODAL)
 		proj.modal = True
@@ -3614,7 +3614,7 @@ Type TNavBar Extends TEventHandler
 		Return edit
 	End Function
 
-	Function create:TNavBar(host:TCodePlay, parent:TGadget)	',root:TNode)
+	Function Create:TNavBar(host:TCodePlay, parent:TGadget)	',root:TNode)
 		Local	n:TNavBar = New TNavBar
 		n.host=host	
 		n.tabber=CreateTabber(0,0,ClientWidth(parent),ClientHeight(parent),parent)
@@ -3697,7 +3697,7 @@ Type TOutputPanel Extends TToolPanel	'used build and run
 		If Not process Then Notify LocalizeString("{{output_notification_processfailure}}").Replace("%1",cmd);Return
 		If Not process.status() Then Notify LocalizeString("{{output_notification_failedstart}}").Replace("%1",cmd);process=Null;Return		
 		pipe=Process.pipe
-		wpipe=TTextStream.create(pipe,TTextStream.UTF8)
+		wpipe=TTextStream.Create(pipe,TTextStream.UTF8)
 
 		cmdline=cmd
 		If home Clear
@@ -3941,7 +3941,7 @@ Type TOutputPanel Extends TToolPanel	'used build and run
 		Return edit
 	End Function
 
-	Function create:TOutputPanel(host:TCodePlay)
+	Function Create:TOutputPanel(host:TCodePlay)
 		Local	o:TOutputPanel = New TOutputPanel
 		o.host=host		
 		o.name="{{tab_output}}"
@@ -5552,7 +5552,7 @@ Type TOpenCode Extends TToolPanel
 		host.SetTitle path
 	End Method
 	
-	Function create:TOpenCode(path$,host:TCodePlay)
+	Function Create:TOpenCode(path$,host:TCodePlay)
 		Local	code:TOpenCode
 		Local	stream:TStream
 		Local	isnew
@@ -6056,7 +6056,7 @@ Type TCodePlay
 '		Select ExtractExt(Upper(path$))
 '		Case "BMX","TXT","BB","CPP","C","S","I","H","HTML","CSS","BAT","FS","VS","README",""
 			OpenProgress LocalizeString("{{msg_loading}}").Replace("%1",StripDir(path))
-			code=TOpenCode.create(path,Self)
+			code=TOpenCode.Create(path,Self)
 			If code
 				AddRecent code.path
 			EndIf
@@ -6121,16 +6121,16 @@ Type TCodePlay
 		Return cmdline
 	End Method
 
-	Method SetCommandLine(Text$)
-		cmdline=Text
+	Method SetCommandLine(text$)
+		cmdline=text
 	End Method
 	
-	Method SetStatus(Text$)
-		SetStatusText window,Text
+	Method SetStatus(text$)
+		SetStatusText window,text
 	End Method
 
 	Method Execute(cmd$,mess$="",post$="",home=True,tool:TTool=Null)
-		If Not output output=TOutputPanel.create(Self)
+		If Not output output=TOutputPanel.Create(Self)
 		output.execute cmd$,mess$,post$,home,tool
 	End Method
 
@@ -6385,17 +6385,17 @@ Type TCodePlay
 ?Win32
 		quickhelp=TQuickHelp.LoadCommandsTxt(bmxpath)
 ?
-		cmdlinereq=TCmdLineRequester.create(Self)
+		cmdlinereq=TCmdLineRequester.Create(Self)
 		'syncmodsreq=TSyncModsRequester.Create(Self)
-		gotoreq=TGotoRequester.create(Self)
-		findreq=TFindRequester.create(Self)
-		replacereq=TReplaceRequester.create(Self)
-		options=TOptionsRequester.create(Self)
+		gotoreq=TGotoRequester.Create(Self)
+		findreq=TFindRequester.Create(Self)
+		replacereq=TReplaceRequester.Create(Self)
+		options=TOptionsRequester.Create(Self)
 '		progress=TProgressRequester.Create(Self)
-		projectreq=TProjectRequester.create(Self)
-		projectprops=TProjectProperties.create(Self)
-		searchreq=TSearchRequester.create(Self)
-		aboutreq=TAboutRequester.create(Self)
+		projectreq=TProjectRequester.Create(Self)
+		projectprops=TProjectProperties.Create(Self)
+		searchreq=TSearchRequester.Create(Self)
+		aboutreq=TAboutRequester.Create(Self)
 		
 		UpdateProgBar progress, 0.1;PollSystem
 		
@@ -6441,7 +6441,7 @@ Type TCodePlay
 		coderoot=TNode.CreateNode("{{navtab_code}}")
 		coderoot.Open()
 
-		navbar=TNavBar.create(Self,SplitterPanel(split,SPLITPANEL_SIDEPANE))
+		navbar=TNavBar.Create(Self,SplitterPanel(split,SPLITPANEL_SIDEPANE))
 
 		navbar.AddView root
 		navbar.AddView coderoot
@@ -6459,9 +6459,9 @@ Type TCodePlay
 ?Not Win32
 		quickhelp=TQuickHelp.LoadCommandsTxt(bmxpath)
 ?
-		helppanel=THelpPanel.create(Self)
+		helppanel=THelpPanel.Create(Self)
 		
-		output=TOutputPanel.create(Self)
+		output=TOutputPanel.Create(Self)
 		
 		activepanel=helppanel
 		InitMenu
