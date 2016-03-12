@@ -29,8 +29,10 @@ Changes log (markcwm/munch - Feb 2016):
 - if open current panel when htmlview selected open bmxpath
 
 Todo:
-- readme with link to http://www.blitzmax.com/Community/posts.php?topic=103112
-- add option [] Unix line endings on all platforms?
+- option Official keywords
+- code view in cpp files
+- link to http://www.blitzmax.com/Community/posts.php?topic=103112
+- option Unix line endings on all platforms?
 - if user enforces specific EOL-style convert loaded files upon saving?
 
 Need to reproduce:
