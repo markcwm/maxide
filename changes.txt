@@ -12,7 +12,6 @@ Changes log (markcwm/munch - Feb 2016):
 - autocapitalize breaking redo
 - code folding and indent guides - checkbox in ide options
 - fix: open last folder or current panel - checkbox in ide options
-- margin text color - panel gadget in ide options
 - matching braces syntax highlighting
 - fix: find not selecting highlighted text
 - fix: autocapitalize occuring in non-bmx files
@@ -27,13 +26,14 @@ Changes log (markcwm/munch - Feb 2016):
 - auto complete - checkbox in ide options
 - enabled syntax highlighting on c/cpp/h/hpp
 - if open current panel when htmlview selected open bmxpath
+- margin fg/bg color with system colors - checkbox in ide options tools tab
+- save with Unix line endings - checkbox in ide options
+- cursor history list with back/forward buttons
 
-Todo:
-- option Official keywords
-- code view in cpp files
-- link to http://www.blitzmax.com/Community/posts.php?topic=103112
-- option Unix line endings on all platforms?
-- if user enforces specific EOL-style convert loaded files upon saving?
+To do:
+- intellisense?
+- code view in cpp files?
 
-Need to reproduce:
+To fix:
 - undo/redo cursor position?
+- find sometimes not working?

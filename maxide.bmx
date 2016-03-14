@@ -1,4 +1,4 @@
-' maxide.bmx 
+' maxide.bmx
 
 ' BlitzMax native integrated development environment
 
@@ -106,12 +106,18 @@ Const HOMEPAGE$="/docs/html/index.html"
 ?MacOS
 Global SVNCMD$="/usr/local/bin/svn"
 Const LABELOFFSET=2
+Global FGSYSCOLOR%=0
+Global BGSYSCOLOR%=-1
 ?Win32
 Global SVNCMD$="svn"
 Const LABELOFFSET=4
+Global FGSYSCOLOR%=GetSysColor(8) ' COLOR_WINDOWTEXT=8
+Global BGSYSCOLOR%=GetSysColor(15) ' COLOR_3DFACE=15
 ?Linux
 Global SVNCMD$="/usr/bin/svn"
 Const LABELOFFSET=0
+Global FGSYSCOLOR%=0
+Global BGSYSCOLOR%=-1
 ?
 
 Const MENUNEW=1
@@ -937,6 +943,7 @@ Type TGadgetStyle
 	Field	font_name$, font_size:Double
 	Field	fg:TColor, bg:TColor
 	Field	font_type = GUIFONT_SYSTEM, font:TGUIFont = fntLibrary[font_type]
+	Field margin_type%=0
 
 	Method Apply(gadget:TGadget)
 		SetGadgetFont gadget,font
@@ -1044,6 +1051,51 @@ Type TGadgetStyle
 		AddGadgetItem s.fcombo, "{{options_font_desc_script}}", GADGETITEM_LOCALIZED
 		Return s
 	End Function
+	
+	Function CreateColor:TGadgetStyle(name$,xpos,ypos,window:TGadget)
+		Local	s:TGadgetStyle
+		s=New TGadgetStyle
+		s.fg=New TColor
+		s.bg=New TColor
+		s.label=CreateLabel(name,xpos,ypos+LABELOFFSET,66,50,window)
+		s.fpanel=CreatePanel(xpos+68,ypos,24,24,window,PANEL_BORDER|PANEL_ACTIVE)
+		s.bpanel=CreatePanel(xpos+96,ypos,24,24,window,PANEL_BORDER|PANEL_ACTIVE)
+		s.fcombo=CreateComboBox(xpos+122,ypos,ClientWidth(window)-(xpos+128),24,window)
+		AddGadgetItem s.fcombo, "{{options_margin_desc_user}}", GADGETITEM_DEFAULT|GADGETITEM_LOCALIZED
+		AddGadgetItem s.fcombo, "{{options_margin_desc_system}}", GADGETITEM_LOCALIZED
+		Return s
+	End Function
+	
+	Method PollColor()
+		Local	f:TGUIFont
+		Select EventSource()
+			Case fpanel
+				If EventID()=EVENT_MOUSEDOWN
+					Return fg.Request()
+				EndIf
+			Case bpanel
+				If EventID()=EVENT_MOUSEDOWN
+					Return bg.Request()
+				EndIf
+			Case fcombo
+				If Not (EventData() < 0) Then
+					margin_type = EventData()
+				EndIf
+				If margin_type=1
+					RefreshColor()
+				EndIf
+		End Select
+	End Method
+	
+	Method RefreshColor()
+		If margin_type=1
+			fg.set(FGSYSCOLOR)
+			bg.set(BGSYSCOLOR)
+		EndIf
+		SetPanelColor fpanel,fg.red,fg.green,fg.blue
+		SetPanelColor bpanel,bg.red,bg.green,bg.blue
+		SelectGadgetItem fcombo, margin_type
+	End Method
 End Type
 
 Const NORMAL=0
@@ -1068,7 +1120,7 @@ Type TOptionsRequester Extends TPanelRequester
 	Field languages:TGadget
 	Field	tabbutton:TGadget
 	Field	editpanel:TGadget,editbutton:TGadget
-	Field	buttons:TGadget[15]
+	Field	buttons:TGadget[17]
 	Field	styles:TTextStyle[]
 ?Not Win32
 	Field	textarea:TGadget
@@ -1079,8 +1131,8 @@ Type TOptionsRequester Extends TPanelRequester
 	Field	navstyle:TGadgetStyle
 	Field	dirty
 	Field	undo:TBank
-	Field helpmap$,lastfolder%,codefold%,indentguide%,autocomplete%
-	Field margincolor:TColor,marginpanel:TGadget
+	Field helpmap$,lastfolder%,codefold%,indentguide%,autocomplete%,unixeol%
+	Field marginstyle:TGadgetStyle
 	
 	Method Show()
 		RefreshGadgets()
@@ -1123,11 +1175,12 @@ Type TOptionsRequester Extends TPanelRequester
 		outputstyle.set(0,-1,GUIFONT_MONOSPACED)
 		navstyle.set(0,-1,GUIFONT_SYSTEM)
 		lastfolder=False
+		unixeol=False
 ?Win32
+		marginstyle.set(FGSYSCOLOR,BGSYSCOLOR,GUIFONT_MONOSPACED)
 		codefold=True
 		indentguide=False
 		autocomplete=True
-		margincolor.set( $000000 )
 ?
 		RefreshGadgets
 	End Method
@@ -1159,11 +1212,12 @@ Type TOptionsRequester Extends TPanelRequester
 		stream.WriteLine "system_keys="+systemkeys
 		stream.WriteLine "sort_code="+sortcode
 		stream.WriteLine "lastfolder="+lastfolder
+		stream.WriteLine "unixeol="+unixeol
 ?Win32
+		stream.WriteLine "margin_style="+marginstyle.ToString()
 		stream.WriteLine "codefold="+codefold
 		stream.WriteLine "indentguide="+indentguide
 		stream.WriteLine "autocomplete="+autocomplete
-		stream.WriteLine "margincolor="+margincolor.ToString()
 ?
 	End Method
 
@@ -1201,11 +1255,12 @@ Type TOptionsRequester Extends TPanelRequester
 				Case "system_keys" systemkeys=t
 				Case "sort_code" sortcode=t
 				Case "lastfolder" lastfolder=t
+				Case "unixeol" unixeol=t
 ?Win32
+				Case "margin_style" marginstyle.FromString(b)
 				Case "codefold" codefold=t
 				Case "indentguide" indentguide=t
 				Case "autocomplete" autocomplete=t
-				Case "margincolor" margincolor.FromString(b)
 ?
 				Case "language"
 					Try
@@ -1249,11 +1304,11 @@ Type TOptionsRequester Extends TPanelRequester
 		SetButtonState buttons[9],systemkeys
 		SetButtonState buttons[10],sortcode
 		SetButtonState buttons[11],lastfolder
+		SetButtonState buttons[12],unixeol
 ?Win32
-		SetButtonState buttons[12],codefold
-		SetButtonState buttons[13],indentguide
-		SetButtonState buttons[14],autocomplete
-		SetPanelColor marginpanel,margincolor.red,margincolor.green,margincolor.blue
+		SetButtonState buttons[13],codefold
+		SetButtonState buttons[14],indentguide
+		SetButtonState buttons[15],autocomplete
 ?
 		SelectGadgetItem tabbutton,Min(Max(tabsize/2-1,0),7)
 		SetPanelColor editpanel,editcolor.red,editcolor.green,editcolor.blue
@@ -1276,6 +1331,9 @@ Type TOptionsRequester Extends TPanelRequester
 		UnlockTextArea textarea
 		outputstyle.Refresh
 		navstyle.Refresh
+?Win32
+		marginstyle.RefreshColor
+?
 		dirty=True
 		ScintillaProps()
 	End Method
@@ -1338,6 +1396,9 @@ Type TOptionsRequester Extends TPanelRequester
 		Next
 		refresh:|outputstyle.Poll()
 		refresh:|navstyle.Poll()
+?Win32
+		refresh:|marginstyle.PollColor()
+?
 		Select EventID()
 			Case EVENT_GADGETACTION, EVENT_WINDOWCLOSE
 				Select EventSource()
@@ -1353,10 +1414,11 @@ Type TOptionsRequester Extends TPanelRequester
 					Case buttons[9];systemkeys=ButtonState(buttons[9]);dirty=2
 					Case buttons[10];sortcode=ButtonState(buttons[10]);dirty=3
 					Case buttons[11];lastfolder=ButtonState(buttons[11])
+					Case buttons[12];unixeol=ButtonState(buttons[12])
 ?Win32
-					Case buttons[12];codefold=ButtonState(buttons[12])
-					Case buttons[13];indentguide=ButtonState(buttons[13])
-					Case buttons[14];autocomplete=ButtonState(buttons[14])
+					Case buttons[13];codefold=ButtonState(buttons[13])
+					Case buttons[14];indentguide=ButtonState(buttons[14])
+					Case buttons[15];autocomplete=ButtonState(buttons[15])
 ?
 					Case tabber;SetPanelIndex SelectedGadgetItem(tabber)
 					Case ok
@@ -1412,13 +1474,13 @@ Type TOptionsRequester Extends TPanelRequester
 							editcolor.Request()
 							refresh=True
 						EndIf
-?Win32
-					Case marginpanel
-						If EventID()=EVENT_MOUSEDOWN
-							margincolor.Request()
-							refresh=True
-						EndIf
-?
+'?Win32
+'					Case marginpanel
+'						If EventID()=EVENT_MOUSEDOWN
+'							margincolor.Request()
+'							refresh=True
+'						EndIf
+'?
 					Default
 						processed = 0
 				EndSelect
@@ -1450,7 +1512,7 @@ Type TOptionsRequester Extends TPanelRequester
 		buttons[1]=CreateButton("{{options_options_btn_autorestore}}",6,34,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
 		buttons[2]=CreateButton("{{options_options_btn_autocaps}}",6,60,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
 		buttons[3]=CreateButton("{{options_options_btn_syntaxhighlight}}",6,86,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
-		buttons[4]=CreateButton("{{options_options_btn_bracketmatching}}",6,112,ClientWidth(w)-12,26,w,BUTTON_CHECKBOX)
+		buttons[4]=CreateButton("{{options_options_btn_bracketmatching}}",6,112,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
 		buttons[5]=CreateButton("{{options_options_btn_autobackup}}",6,138,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
 		buttons[6]=CreateButton("{{options_options_btn_autoindent}}",6,164,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
 		buttons[7]=CreateButton("{{options_options_btn_autohideoutput}}",6,190,ClientWidth(w)-12,26,w,BUTTON_CHECKBOX)
@@ -1458,20 +1520,16 @@ Type TOptionsRequester Extends TPanelRequester
 		buttons[9]=CreateButton("{{options_options_btn_osshortcuts}}",6,242,ClientWidth(w)-12,26,w,BUTTON_CHECKBOX)
 		buttons[10]=CreateButton("{{options_options_btn_sortcodeviewnodes}}",6,268,ClientWidth(w)-12,26,w,BUTTON_CHECKBOX)
 		buttons[11]=CreateButton("{{options_options_btn_lastfolder}}",ClientWidth(w)/2+12,6,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
+		buttons[12]=CreateButton("{{options_options_btn_unixeol}}",ClientWidth(w)/2+12,34,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
 ?Win32
-		buttons[12]=CreateButton("{{options_options_btn_codefold}}",ClientWidth(w)/2+12,34,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
-		buttons[13]=CreateButton("{{options_options_btn_indentguide}}",ClientWidth(w)/2+12,60,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
-		buttons[14]=CreateButton("{{options_options_btn_autocomplete}}",ClientWidth(w)/2+12,86,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
+		buttons[13]=CreateButton("{{options_options_btn_codefold}}",ClientWidth(w)/2+12,60,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
+		buttons[14]=CreateButton("{{options_options_btn_indentguide}}",ClientWidth(w)/2+12,86,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
+		buttons[15]=CreateButton("{{options_options_btn_autocomplete}}",ClientWidth(w)/2+12,112,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
 ?
 		w=editorpanel
 		CreateLabel("{{options_editor_label_background}}:",6,6+4,90,24,w)
 		editpanel=CreatePanel(100,6,24,24,w,PANEL_BORDER|PANEL_ACTIVE)
 		editbutton=CreateButton("..",128,6,ClientWidth(w)-134,24,w)
-?Win32
-		margincolor=New TColor
-		CreateLabel("{{options_editor_label_margin}}:",6,36+4,90,24,w)
-		marginpanel=CreatePanel(100,36,24,24,w,PANEL_BORDER|PANEL_ACTIVE)
-?
 
 		tabbutton=CreateComboBox(128,36,ClientWidth(w)-134,24,w)
 		For Local i=1 To 8
@@ -1496,7 +1554,9 @@ Type TOptionsRequester Extends TPanelRequester
 		w=toolpanel
 		outputstyle=TGadgetStyle.Create("{{options_tools_label_output}}: ",6,6,w)
 		navstyle=TGadgetStyle.Create("{{options_tools_label_navbar}}: ",6,66,w)
-
+?Win32
+		marginstyle=TGadgetStyle.CreateColor("{{options_tools_label_margin}}: ",6,126,w)
+?
 		SetDefaults()
 		SetPanel optionspanel
 		
@@ -4043,7 +4103,7 @@ Type TOpenCode Extends TToolPanel
 	Field	editmenu:TGadget
 	Field	codenode:TCodeNode
 	Field	dirtynode,uc
-	Field helpmap$,redoflag%,indentlen%
+	Field helpmap$,redoflag%,indentlen%,lastline%,gotoflag%,cursorindex%=1,cursorlist:TList=New TList
 	
 	Function RefreshHighlightingMsg()
 		msgHighlightingStatus = LocalizeString("{{msg_highlightingcode}}")
@@ -4181,12 +4241,56 @@ Type TOpenCode Extends TToolPanel
 		Wend
 	End Method
 	
+	Rem
+	Method parsecpp(n:TCodeNode)
+		Local	src$,line,col,temp$
+		Local	p=0,p1=0,r=0,t=0,m=0,f=0,l=0,e=0,rf=0,rfs=0,ps=0,rm=0,rs=0,rme=0
+
+		src=cleansrcl
+		p1=src.length
+		t=-1;m=-1;f=-1;l=-1
+		DebugLog src[..20]+"..."
+		While p<p1			'update rem,type,method,function,label pointers
+			ps=p
+			p=src.Find("~n",p+1)
+			If p=-1 Then Exit
+			If ps>0 Then ps:+1
+			temp=src[ps..p]
+			' remarks
+			rm=temp.Find("/*",0)
+			If rm>-1 Then rf=1 ; temp=temp[..rm]
+			rme=temp.Find("*/",0)
+			If rme>-1 Then rf=0 ; temp=temp[rme+2..]
+			rs=temp.Find("//",0)
+			If rs>-1 Then temp=temp[..rs]
+			If rf=1 Then temp=""
+			' methods
+			m=temp.Find("(",0)
+			If m=-1 Then temp=""
+			' write func that returns if given word exists on line for keyword matches
+			' then write func that lists all func that are not wanted eg. if
+		'If r>-1 And (m>-1 And r<m) Then rfs=1 Else rfs=0
+		't=temp.Find("class ",0)
+		'If t=-1 Then t=temp.Find("class~t",0)
+		'If (temp[t-1..t]<>" " And temp[t-1..t]<>"~t") And t>0 Then t=-1
+		If temp.length>0
+			DebugLog "="+temp+"="
+		EndIf
+		Wend
+	End Method	
+	EndRem
+	
 	Method GetNode:TNode()
 		Local	root:TCodeNode = New TCodeNode
 		root.name = StripDir(path)
 		root.owner = Self
 		root.count = cleansrc.length
-		If isbmx parsebmx(root) ' stopped code view parse on non bmx files
+		If isbmx
+			parsebmx(root) ' stopped code view parse on non bmx files
+		ElseIf iscpp Or isc
+			'parsecpp(root)
+			'DebugLog "CPP"
+		EndIf
 		If codenode
 			If host.options.sortcode root.sortkids
 			codenode.Sync(root)	
@@ -4467,7 +4571,13 @@ Type TOpenCode Extends TToolPanel
 		textarea.GetScintilla().SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDERTAIL, SC_MARK_BACKGROUND) ' end
 		
 		' symbol colors
-		clr=GetSysColor(15) ' COLOR_3DFACE - margin bg color
+		Local mbr%,mbg%,mbb%
+		If opt.marginstyle.bg.red<128 Then mbr=opt.marginstyle.bg.red+20 Else mbr=opt.marginstyle.bg.red-20
+		If opt.marginstyle.bg.green<128 Then mbg=opt.marginstyle.bg.green+20 Else mbg=opt.marginstyle.bg.green-20
+		If opt.marginstyle.bg.blue<128 Then mbb=opt.marginstyle.bg.blue+20 Else mbb=opt.marginstyle.bg.blue-20
+		clr=EncodeColor(mbr, mbg, mbb)
+		textarea.SetLexerStyle(SCI_SETFOLDMARGINHICOLOUR, 1, clr)
+		clr=EncodeColor(opt.marginstyle.bg.red, opt.marginstyle.bg.green, opt.marginstyle.bg.blue) ' margin bg color
 		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDER, clr)
 		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDEROPEN, clr)
 		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDEREND,  clr)
@@ -4475,7 +4585,10 @@ Type TOpenCode Extends TToolPanel
 		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDEROPENMID, clr)
 		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDERSUB, clr)
 		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDERTAIL, clr)
-		clr=EncodeColor(opt.margincolor.red, opt.margincolor.green, opt.margincolor.blue) ' margin color
+		textarea.SetLexerStyle(SCI_STYLESETBACK, STYLE_LINENUMBER, clr)
+		textarea.SetLexerStyle(SCI_STYLESETBACK, STYLE_INDENTGUIDE, clr)
+		textarea.SetLexerStyle(SCI_SETFOLDMARGINCOLOUR, 1, clr)
+		clr=EncodeColor(opt.marginstyle.fg.red, opt.marginstyle.fg.green, opt.marginstyle.fg.blue) ' margin fg color
 		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDER, clr)
 		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDEROPEN, clr)
 		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDEREND, clr)
@@ -5172,7 +5285,7 @@ Type TOpenCode Extends TToolPanel
 		EndIf
 		
 		If id=EVENT_KEYCHAR And key=KEY_ENTER And this
-			this.textarea.GetScintilla().SendEditor(SCI_GOTOPOS, TextAreaCursor(this.textarea,TEXTAREA_CHARS)+this.indentlen)
+			this.textarea.GetScintilla().SendEditor(SCI_GOTOPOS, TextAreaCursor(this.textarea, TEXTAREA_CHARS)+this.indentlen)
 		EndIf
 ?
 
@@ -5186,11 +5299,28 @@ Type TOpenCode Extends TToolPanel
 					Case EVENT_GADGETMENU
 						PopupWindowMenu host.window,editmenu
 					Case EVENT_GADGETACTION
-						'DebugLog "ACTION autocapitalize="+host.options.autocapitalize+" syntaxhighlight="+host.options.syntaxhighlight+" bracketmatching="+host.options.bracketmatching
+						'DebugLog "ACTION "
 						UpdateCode
 					Case EVENT_GADGETSELECT
 						'DebugLog "SELECT "
 						UpdateCursor
+						
+						Local id%=0, curline%=TextAreaCursor(textarea, TEXTAREA_LINES)
+						If gotoflag=False And Abs(lastline-curline)>textarea.GetScintilla().SendEditor(SCI_LINESONSCREEN)
+							If cursorindex<CountList(cursorlist)
+								For Local linenum:String=EachIn cursorlist
+									id:+1
+									If cursorindex<id
+										ListRemove(cursorlist, linenum)
+									EndIf
+								Next
+							EndIf
+							ListAddLast cursorlist, String(curline)
+							cursorindex=CountList(cursorlist)
+							lastline=curline
+							
+						EndIf
+						gotoflag=False
 ?Win32
 						redoflag=False
 						
@@ -5348,8 +5478,10 @@ Type TOpenCode Extends TToolPanel
 		src=src.Replace(Chr(13),"")
 ?
 		src=src.Replace(Chr(11),"")
-		Local txt$ = src.Replace$(Chr(10),Chr(13)+Chr(10))		
-
+		Local txt$ = src
+		If host.options.unixeol=False
+			txt = src.Replace$(Chr(10),Chr(13)+Chr(10))		
+		EndIf
 		Try
 			SaveText txt,file
 		Catch exception:Object
@@ -5612,6 +5744,7 @@ Type TOpenCode Extends TToolPanel
 		code.textarea.GetScintilla().SendEditor(SCI_EmptyUndoBuffer, 0, 0) ' clear the undo/redo action list
 		code.textarea.GetScintilla().SendEditor(SCI_SetSavePoint, 0, 0) ' set a save point
 ?
+		ListAddLast code.cursorlist, String(0)
 		code.UpdateCode False
 		code.filesrc=TextAreaText(code.textarea)
 		Return code
@@ -6987,8 +7120,47 @@ Type TCodePlay
 							Case TB_STEPOUT If output output.stepout
 							Case TB_STOP If output output.Stop
 							Case TB_HOME helppanel.Home;SelectPanel helppanel
-							Case TB_BACK helppanel.Back;SelectPanel helppanel
-							Case TB_FORWARDS helppanel.Forward;SelectPanel helppanel
+							
+							Case TB_BACK
+							If currentpanel=helppanel
+								helppanel.Back;SelectPanel helppanel
+							Else
+								Local id%=0, los%=0, pan:TOpenCode=TOpenCode(currentpanel)
+								If pan.cursorindex>1
+									pan.cursorindex:-1
+								EndIf
+								For Local linenum:String=EachIn pan.cursorlist
+									id:+1
+									If pan.cursorindex=id
+										pan.gotoflag=True
+										los=pan.textarea.GetScintilla().SendEditor(SCI_LINESONSCREEN)
+										pan.textarea.GetScintilla().SendEditor(SCI_GOTOLINE, Int(linenum)+los)
+										pan.textarea.GetScintilla().SendEditor(SCI_GOTOLINE, Int(linenum))
+										pan.lastline=TextAreaCursor(pan.textarea, TEXTAREA_LINES)
+									EndIf
+								Next
+							EndIf
+							
+							Case TB_FORWARDS
+							If currentpanel=helppanel
+								helppanel.Forward;SelectPanel helppanel
+							Else
+								Local id%=0, los%=0, pan:TOpenCode=TOpenCode(currentpanel)
+								If pan.cursorindex<CountList(pan.cursorlist)
+									pan.cursorindex:+1
+								EndIf
+								For Local linenum:String=EachIn pan.cursorlist
+									id:+1
+									If pan.cursorindex=id
+										pan.gotoflag=True
+										los=pan.textarea.GetScintilla().SendEditor(SCI_LINESONSCREEN)
+										pan.textarea.GetScintilla().SendEditor(SCI_GOTOLINE, Int(linenum)+los)
+										pan.textarea.GetScintilla().SendEditor(SCI_GOTOLINE, Int(linenum))
+										pan.lastline=TextAreaCursor(pan.textarea, TEXTAREA_LINES)
+									EndIf
+								Next
+							EndIf
+							
 						End Select
 						
 					Case tabbar
