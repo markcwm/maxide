@@ -6564,9 +6564,7 @@ Type TCodePlay
 		?Linux
 		SetGadgetPixmap(window, LoadPixmapPNG("incbin::window_icon.png"), GADGETPIXMAP_ICON )
 		?
-?Win32
 		quickhelp=TQuickHelp.LoadCommandsTxt(bmxpath)
-?
 		cmdlinereq=TCmdLineRequester.Create(Self)
 		'syncmodsreq=TSyncModsRequester.Create(Self)
 		gotoreq=TGotoRequester.Create(Self)
@@ -6638,9 +6636,7 @@ Type TCodePlay
 		SetMode EDITMODE
 		
 		UpdateProgBar progress, 0.3;PollSystem
-?Not Win32
-		quickhelp=TQuickHelp.LoadCommandsTxt(bmxpath)
-?
+		'quickhelp=TQuickHelp.LoadCommandsTxt(bmxpath)
 		helppanel=THelpPanel.Create(Self)
 		
 		output=TOutputPanel.Create(Self)
