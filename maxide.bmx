@@ -103,6 +103,12 @@ Const FileTypeFilters$="Code Files:"+FileTypes$+";All Files:*"
 
 Const HOMEPAGE$="/docs/html/index.html"
 
+Const CPPKEYWORDS$="asm auto bool break case catch char class const const_cast continue default delete do double "..
+	+"dynamic_cast else enum explicit extern false finally float for friend goto if inline int long mutable "..
+	+"namespace new operator private protected public register reinterpret_cast register return short "..
+	+"signed sizeof static static_cast struct switch template this throw true try typedef typeid typename "..
+	+"union unsigned using virtual void volatile wchar_t while "
+
 ?MacOS
 Global SVNCMD$="/usr/local/bin/svn"
 Const LABELOFFSET=2
@@ -249,6 +255,10 @@ Function Quote$(a$)		'add quotes to arg if spaces found
 	p=a.find(" ")
 	If p=-1 Return a	'no spaces
 	Return Chr(34)+a+Chr(34)		
+End Function
+
+Function EncodeColor:Int(ColorR:Byte , ColorG:Byte , ColorB:Byte)	
+	Return ColorR + (ColorG Shl 8) + (ColorB Shl 16)
 End Function
 
 Type TToken
@@ -1343,11 +1353,8 @@ Type TOptionsRequester Extends TPanelRequester
 		textarea.SetLineNumbering(0, False)
 		textarea.SetMarginType(1, SC_MARGIN_SYMBOL, 20)
 		textarea.SetMarginSensitive(1, True)
+		textarea.SendEditor(SCI_USEPOPUP, 0) ' deactivate scintilla popup
 		
-		helpmap=""
-		For Local ts$=EachIn MapKeys(host.quickhelp.map)
-			helpmap :+ ts.toLower()+" "
-		Next
 		textarea.SetLexer(SCLEX_BLITZMAX) ' syntax format
 		textarea.SetLexerKeywords(0, helpmap) ' keywords list
 		
@@ -1362,7 +1369,7 @@ Type TOptionsRequester Extends TPanelRequester
 		Next
 		textarea.SetLexerStyle(SCI_STYLESETBACK, STYLE_DEFAULT, clr) ' bg color
 		clr=EncodeColor(styles[NORMAL].Color.red, styles[NORMAL].Color.green, styles[NORMAL].Color.blue)
-		textarea.GetScintilla().SendEditor(SCI_SETCARETFORE, clr) ' fg caret
+		textarea.SendEditor(SCI_SETCARETFORE, clr) ' fg caret
 		
 		If syntaxhighlight
 			clr=EncodeColor(styles[KEYWORD].Color.red, styles[KEYWORD].Color.green, styles[KEYWORD].Color.blue)
@@ -1377,14 +1384,16 @@ Type TOptionsRequester Extends TPanelRequester
 		EndIf
 		If bracketmatching And syntaxhighlight
 			clr=EncodeColor(styles[MATCHING].Color.red, styles[MATCHING].Color.green, styles[MATCHING].Color.blue)
-			textarea.GetScintilla().SendEditor(SCI_STYLESETFORE, STYLE_BRACELIGHT, clr) ' fg matching braces
-			textarea.GetScintilla().SendEditor(SCI_BRACEHIGHLIGHT, 24, 32)
+			textarea.SendEditor(SCI_STYLESETFORE, STYLE_BRACELIGHT, clr) ' fg matching braces
+			clr=EncodeColor(editcolor.red, editcolor.green, editcolor.blue)
+			textarea.SendEditor(SCI_STYLESETBACK, STYLE_BRACELIGHT, clr) ' bg matching braces
+			textarea.SendEditor(SCI_BRACEHIGHLIGHT, 24, 32)
 		EndIf
 		
 		' disable any ctrl+shift+key multi characters
 		For Local key%=0 To 255
-			textarea.GetScintilla().SendEditor(SCI_CLEARCMDKEY, key+(SCMOD_CTRL Shl 16), 0)
-			textarea.GetScintilla().SendEditor(SCI_CLEARCMDKEY, key+((SCMOD_CTRL+SCMOD_SHIFT) Shl 16), 0)
+			textarea.SendEditor(SCI_CLEARCMDKEY, key+(SCMOD_CTRL Shl 16), 0)
+			textarea.SendEditor(SCI_CLEARCMDKEY, key+((SCMOD_CTRL+SCMOD_SHIFT) Shl 16), 0)
 		Next
 ?
 	End Method
@@ -1557,6 +1566,11 @@ Type TOptionsRequester Extends TPanelRequester
 ?Win32
 		marginstyle=TGadgetStyle.CreateColor("{{options_tools_label_margin}}: ",6,126,w)
 ?
+		helpmap=""
+		For Local ts$=EachIn MapKeys(host.quickhelp.map)
+			helpmap :+ ts.toLower()+" "
+		Next
+		
 		SetDefaults()
 		SetPanel optionspanel
 		
@@ -3985,8 +3999,8 @@ Type TOutputPanel Extends TToolPanel	'used build and run
 ?Win32
 		' disable any ctrl+shift+key multi characters
 		For Local key%=0 To 255
-			output.GetScintilla().SendEditor(SCI_CLEARCMDKEY, key+(SCMOD_CTRL Shl 16), 0)
-			output.GetScintilla().SendEditor(SCI_CLEARCMDKEY, key+((SCMOD_CTRL+SCMOD_SHIFT) Shl 16), 0)
+			output.SendEditor(SCI_CLEARCMDKEY, key+(SCMOD_CTRL Shl 16), 0)
+			output.SendEditor(SCI_CLEARCMDKEY, key+((SCMOD_CTRL+SCMOD_SHIFT) Shl 16), 0)
 		Next
 ?
 	End Method
@@ -4103,7 +4117,8 @@ Type TOpenCode Extends TToolPanel
 	Field	editmenu:TGadget
 	Field	codenode:TCodeNode
 	Field	dirtynode,uc
-	Field helpmap$,redoflag%,indentlen%,lastline%,gotoflag%,cursorindex%=1,cursorlist:TList=New TList
+	Field helpmap$,methodlist:TList=New TList,redoflag%,indentlen%,lastline%
+	Field gotoflag%,cursorindex%=1,scplist:TList=New TList,ecplist:TList=New TList
 	
 	Function RefreshHighlightingMsg()
 		msgHighlightingStatus = LocalizeString("{{msg_highlightingcode}}")
@@ -4117,11 +4132,22 @@ Type TOpenCode Extends TToolPanel
 		If c>=123 Return True
 	End Function
 	
+	Function GetTokenName$(src$, pos%) ' gets first word
+		Local id%=pos, spos%=0, epos%=0
+		While id<src.length
+			If spos>0 And IsAlphaNumeric(src[id])=False Then epos=id ; Exit
+			If src[id]=9 Or src[id]=32 Then spos=id+1
+			If src[id]=10 Or src[id]=13 Then Exit
+			id:+1
+		Wend
+		Return src[spos..epos]
+	End Function
+	
 	Function IsAlphaNumeric%(c%)
 		If c>47 And c<58 Return True ' 48..57 0-9
 		If c>64 And c<91 Return True ' 65..90 a-z
 		If c>96 And c<123 Return True ' 97..122 A-Z
-		If c=189 Return True ' 189 _
+		If c=95 Return True ' 95 _
 		Return False
 	End Function
 	
@@ -4178,6 +4204,7 @@ Type TOpenCode Extends TToolPanel
 	Method parsebmx(n:TCodeNode)
 		Local	src$,line,col
 		Local	p,p1,r,t,m,f,l,e
+		Local name$
 
 		src=cleansrcl
 		p1=src.length
@@ -4188,12 +4215,18 @@ Type TOpenCode Extends TToolPanel
 			Wend
 			While t<=p
 				t=FindToken("type",src,t+1)
+				name=GetTokenName(cleansrc, t)
+				If name.length>0 Then ListAddLast methodlist, name
 			Wend
 			While m<=p
 				m=FindToken("method",src,m+1)
+				name=GetTokenName(cleansrc, m)
+				If name.length>0 Then ListAddLast methodlist, name
 			Wend
 			While f<=p
 				f=FindToken("function",src,f+1)
+				name=GetTokenName(cleansrc, f)
+				If name.length>0 Then ListAddLast methodlist, name
 			Wend
 			While l<=p
 				l=FindLabel(src,l+1)
@@ -4286,6 +4319,7 @@ Type TOpenCode Extends TToolPanel
 		root.owner = Self
 		root.count = cleansrc.length
 		If isbmx
+			ClearList methodlist
 			parsebmx(root) ' stopped code view parse on non bmx files
 		ElseIf iscpp Or isc
 			'parsecpp(root)
@@ -4438,7 +4472,7 @@ Type TOpenCode Extends TToolPanel
 		SetTextAreaText textarea,d.del,d.pos1,d.add.length
 		SelectTextAreaText(textarea,d.pos,d.count)
 ?Win32
-		textarea.GetScintilla().SendEditor(SCI_UNDO)
+		textarea.SendEditor(SCI_UNDO)
 		redoflag=True
 ?
 		SetCode TextAreaText(textarea),d
@@ -4454,7 +4488,7 @@ Type TOpenCode Extends TToolPanel
 		SetTextAreaText textarea,d.add,d.pos,d.del.length
 		SelectTextAreaText(textarea,d.pos0,d.count0)
 ?Win32
-		textarea.GetScintilla().SendEditor(SCI_REDO)
+		textarea.SendEditor(SCI_REDO)
 		redoflag=True
 ?
 		UpdateCursor
@@ -4464,11 +4498,10 @@ Type TOpenCode Extends TToolPanel
 	Method RefreshStyle()
 		Local	rgb:TColor
 		Local	src$
-		Local charwidth
+		'Local charwidth
 		
 		'charwidth=host.options.editfont.CharWidth(32)
-		charwidth=1 ' fix - no CharWidth method in TGUIFont
-		SetTextAreaTabs textarea,host.options.tabsize*charwidth		
+		SetTextAreaTabs textarea,host.options.tabsize ' fix - no CharWidth method in TGUIFont
 		SetMargins textarea,4		
 		SetTextAreaFont textarea,host.options.editfont
 		rgb=host.options.editcolor
@@ -4494,19 +4527,10 @@ Type TOpenCode Extends TToolPanel
 		textarea.SetLineNumbering(0, True)
 		textarea.SetMarginType(1, SC_MARGIN_SYMBOL, 20)
 		textarea.SetMarginSensitive(1, True)
-		textarea.GetScintilla().SendEditor(SCI_USEPOPUP, 0) ' deactivate scintilla popup
+		textarea.SendEditor(SCI_USEPOPUP, 0) ' deactivate scintilla popup
 		
-		helpmap=""
-		For Local ts$=EachIn MapKeys(host.quickhelp.map)
-			helpmap :+ ts.toLower()+" "
-		Next
 		textarea.SetLexer(SCLEX_BLITZMAX)
 		If iscpp Or isc
-			helpmap="asm auto bool break case catch char class const const_cast continue default delete do double "..
-			+"dynamic_cast else enum explicit extern false finally float for friend goto if inline int long mutable "..
-			+"namespace new operator private protected public register reinterpret_cast register return short "..
-			+"signed sizeof static static_cast struct switch template this throw true try typedef typeid typename "..
-			+"union unsigned using virtual void volatile wchar_t while "
 			textarea.SetLexer(SCLEX_CPP)
 		EndIf
 		textarea.SetLexerKeywords(0, helpmap) ' keywords list
@@ -4523,7 +4547,7 @@ Type TOpenCode Extends TToolPanel
 		Next
 		textarea.SetLexerStyle(SCI_STYLESETBACK, STYLE_DEFAULT, clr) ' bg color
 		clr=EncodeColor(opt.styles[NORMAL].Color.red, opt.styles[NORMAL].Color.green, opt.styles[NORMAL].Color.blue)
-		textarea.GetScintilla().SendEditor(SCI_SETCARETFORE, clr) ' fg caret
+		textarea.SendEditor(SCI_SETCARETFORE, clr) ' fg caret
 		
 		If host.options.syntaxhighlight And (iscpp Or isc)
 			clr=EncodeColor(opt.styles[KEYWORD].Color.red, opt.styles[KEYWORD].Color.green, opt.styles[KEYWORD].Color.blue)
@@ -4552,23 +4576,25 @@ Type TOpenCode Extends TToolPanel
 		EndIf
 		If host.options.bracketmatching And host.options.syntaxhighlight
 			clr=EncodeColor(opt.styles[MATCHING].Color.red, opt.styles[MATCHING].Color.green, opt.styles[MATCHING].Color.blue)
-			textarea.GetScintilla().SendEditor(SCI_STYLESETFORE, STYLE_BRACELIGHT, clr) ' fg matching braces
+			textarea.SendEditor(SCI_STYLESETFORE, STYLE_BRACELIGHT, clr) ' fg matching braces
+			clr=EncodeColor(opt.editcolor.red, opt.editcolor.green, opt.editcolor.blue)
+			textarea.SendEditor(SCI_STYLESETBACK, STYLE_BRACELIGHT, clr) ' bg matching braces
 		EndIf
 		
 		' disable any ctrl+shift+key multi characters
 		For Local key%=0 To 255
-			textarea.GetScintilla().SendEditor(SCI_CLEARCMDKEY, key+(SCMOD_CTRL Shl 16), 0)
-			textarea.GetScintilla().SendEditor(SCI_CLEARCMDKEY, key+((SCMOD_CTRL+SCMOD_SHIFT) Shl 16), 0)
+			textarea.SendEditor(SCI_CLEARCMDKEY, key+(SCMOD_CTRL Shl 16), 0)
+			textarea.SendEditor(SCI_CLEARCMDKEY, key+((SCMOD_CTRL+SCMOD_SHIFT) Shl 16), 0)
 		Next
 		
 		' symbol markers
-		textarea.GetScintilla().SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDER, SC_MARK_ARROW) ' closed
-		textarea.GetScintilla().SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDEROPEN, SC_MARK_ARROWDOWN) ' open
-		textarea.GetScintilla().SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDEREND,  SC_MARK_ARROW) ' nested closed
-		textarea.GetScintilla().SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDEROPENMID, SC_MARK_ARROWDOWN) ' nested open
-		textarea.GetScintilla().SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDERMIDTAIL, SC_MARK_BACKGROUND) ' nested end
-		textarea.GetScintilla().SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDERSUB, SC_MARK_BACKGROUND) ' vline
-		textarea.GetScintilla().SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDERTAIL, SC_MARK_BACKGROUND) ' end
+		textarea.SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDER, SC_MARK_ARROW) ' closed
+		textarea.SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDEROPEN, SC_MARK_ARROWDOWN) ' open
+		textarea.SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDEREND,  SC_MARK_ARROW) ' nested closed
+		textarea.SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDEROPENMID, SC_MARK_ARROWDOWN) ' nested open
+		textarea.SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDERMIDTAIL, SC_MARK_BACKGROUND) ' nested end
+		textarea.SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDERSUB, SC_MARK_BACKGROUND) ' vline
+		textarea.SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDERTAIL, SC_MARK_BACKGROUND) ' end
 		
 		' symbol colors
 		Local mbr%,mbg%,mbb%
@@ -4596,24 +4622,24 @@ Type TOpenCode Extends TToolPanel
 		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDEROPENMID, clr)
 		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDERSUB, clr)
 		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDERTAIL, clr)
-		textarea.GetScintilla().SendEditor(SCI_SETFOLDFLAGS, 16, 0) ' draw fold line below, uses STYLE_DEFAULT
+		textarea.SendEditor(SCI_SETFOLDFLAGS, 16, 0) ' draw fold line below, uses STYLE_DEFAULT
 		textarea.SetLexerStyle(SCI_STYLESETFORE, STYLE_LINENUMBER, clr)
 		textarea.SetLexerStyle(SCI_STYLESETFORE, STYLE_INDENTGUIDE, clr)
 		textarea.SetLexerStyle(SCI_STYLESETFORE, STYLE_DEFAULT, clr) ' fold line
 		
 		' margins
 		If host.options.codefold=True
-			textarea.GetScintilla().SendEditor(SCI_SETMARGINMASKN, 1, SC_MASK_FOLDERS) ' margin 1 visible
+			textarea.SendEditor(SCI_SETMARGINMASKN, 1, SC_MASK_FOLDERS) ' margin 1 visible
 			textarea.SetProperty("fold", "1") ' enable fold
 			textarea.SetProperty("fold.compact", "0") ' don't fold blank lines
 		Else
-			textarea.GetScintilla().SendEditor(SCI_SETMARGINMASKN, 1, ~SC_MASK_FOLDERS)
+			textarea.SendEditor(SCI_SETMARGINMASKN, 1, ~SC_MASK_FOLDERS)
 			textarea.SetProperty("fold", "0")
 		EndIf
 		If host.options.indentguide=True
-			textarea.GetScintilla().SendEditor(SCI_SETINDENTATIONGUIDES, SC_IV_LOOKBOTH, 0) ' indentation guides
+			textarea.SendEditor(SCI_SETINDENTATIONGUIDES, SC_IV_LOOKBOTH, 0) ' indentation guides
 		Else
-			textarea.GetScintilla().SendEditor(SCI_SETINDENTATIONGUIDES, SC_IV_NONE) ' no indented lines
+			textarea.SendEditor(SCI_SETINDENTATIONGUIDES, SC_IV_NONE) ' no indented lines
 		EndIf
 ?
 	End Method
@@ -5082,7 +5108,7 @@ Type TOpenCode Extends TToolPanel
 
 ?Win32
 			If Not otherchar And host.options.syntaxhighlight And host.options.bracketmatching
-				textarea.GetScintilla().SendEditor(SCI_BRACEHIGHLIGHT, -1, -1)
+				textarea.SendEditor(SCI_BRACEHIGHLIGHT, -1, -1)
 			EndIf
 ?
 
@@ -5113,7 +5139,7 @@ Type TOpenCode Extends TToolPanel
 									style[MATCHING].format(textarea, othercharpos, 1)
 ?Win32
 									If host.options.syntaxhighlight And host.options.bracketmatching
-										textarea.GetScintilla().SendEditor(SCI_BRACEHIGHLIGHT, currentcharpos, othercharpos)
+										textarea.SendEditor(SCI_BRACEHIGHLIGHT, currentcharpos, othercharpos)
 									EndIf
 ?
 									currentbrackets[1] = othercharpos
@@ -5229,8 +5255,8 @@ Type TOpenCode Extends TToolPanel
 		
 		If id=EVENT_KEYCHAR And this And this.host.options.autocomplete And (this.isbmx Or this.iscpp Or this.isc)
 			Local curpos:Int=TextAreaCursor(this.textarea)
-			Local ws:Int=this.textarea.GetScintilla().SendEditor(SCI_WORDSTARTPOSITION, curpos, 1)
-			Local we:Int=this.textarea.GetScintilla().SendEditor(SCI_WORDENDPOSITION, curpos, 1)
+			Local ws:Int=this.textarea.SendEditor(SCI_WORDSTARTPOSITION, curpos, 1)
+			Local we:Int=this.textarea.SendEditor(SCI_WORDENDPOSITION, curpos, 1)
 			Local wl:Int=0
 			Local token:String=""
 			Local count:Int=0
@@ -5245,16 +5271,22 @@ Type TOpenCode Extends TToolPanel
 			End Try
 			
 			If token.length>0
-				Local keylist:String=""
-				For Local temp:String=EachIn MapKeys(this.host.quickhelp.map)
+				Local temp$,keylist:String=""
+				For temp=EachIn MapKeys(this.host.quickhelp.map)
 					If temp.ToLower().StartsWith(token.toLower())
-						keylist:+(temp+" ")
+						keylist :+ (temp+" ")
 						count:+1
-					End If
+					EndIf
 				Next
-				this.textarea.GetScintilla().SendEditor(SCI_AUTOCSETIGNORECASE, 1)
-				this.textarea.GetScintilla().SendEditor(SCI_AUTOCSETMAXHEIGHT, 10)
-				this.textarea.GetScintilla().SendEditorString(SCI_AUTOCSHOW, wl, keylist)
+				For temp=EachIn this.methodlist
+					If temp.ToLower().StartsWith(token.toLower())
+						keylist :+ (temp+" ")
+						count:+1
+					EndIf
+				Next
+				this.textarea.SendEditor(SCI_AUTOCSETIGNORECASE, 1)
+				this.textarea.SendEditor(SCI_AUTOCSETMAXHEIGHT, 10)
+				this.textarea.SendEditorString(SCI_AUTOCSHOW, wl, keylist)
 			EndIf
 		EndIf
 ?
@@ -5275,17 +5307,17 @@ Type TOpenCode Extends TToolPanel
 			this.AutoIndent()
 			Return 0
 		EndIf
-?Win32
+?Win32		
 		If id=EVENT_KEYDOWN And key=KEY_ENTER And this
-			If this.textarea.GetScintilla().SendEditor(SCI_AUTOCGETCURRENT)=-1
+			If this.textarea.SendEditor(SCI_AUTOCGETCURRENT)=-1
 				this.AutoIndent()
 			Else
 				this.indentlen=0
 			EndIf
 		EndIf
 		
-		If id=EVENT_KEYCHAR And key=KEY_ENTER And this
-			this.textarea.GetScintilla().SendEditor(SCI_GOTOPOS, TextAreaCursor(this.textarea, TEXTAREA_CHARS)+this.indentlen)
+		If id=EVENT_KEYCHAR And key=KEY_ENTER And this		
+			SelectTextAreaText(this.textarea, TextAreaCursor(this.textarea)+this.indentlen, 0)
 		EndIf
 ?
 
@@ -5298,39 +5330,49 @@ Type TOpenCode Extends TToolPanel
 				Select EventID()
 					Case EVENT_GADGETMENU
 						PopupWindowMenu host.window,editmenu
+						
 					Case EVENT_GADGETACTION
 						'DebugLog "ACTION "
 						UpdateCode
+						
 					Case EVENT_GADGETSELECT
 						'DebugLog "SELECT "
 						UpdateCursor
 						
+?Win32
 						Local id%=0, curline%=TextAreaCursor(textarea, TEXTAREA_LINES)
-						If gotoflag=False And Abs(lastline-curline)>textarea.GetScintilla().SendEditor(SCI_LINESONSCREEN)
-							If cursorindex<CountList(cursorlist)
-								For Local linenum:String=EachIn cursorlist
+						If gotoflag=False And Abs(lastline-curline)>textarea.SendEditor(SCI_LINESONSCREEN)
+							If cursorindex<CountList(scplist)
+								For Local startpos:String=EachIn scplist
 									id:+1
 									If cursorindex<id
-										ListRemove(cursorlist, linenum)
+										ListRemove(scplist, startpos)
+									EndIf
+								Next
+								id=0
+								For Local endpos:String=EachIn ecplist
+									id:+1
+									If cursorindex<id
+										ListRemove(ecplist, endpos)
 									EndIf
 								Next
 							EndIf
-							ListAddLast cursorlist, String(curline)
-							cursorindex=CountList(cursorlist)
+							ListAddLast scplist, String(TextAreaCursor(textarea, TEXTAREA_CHARS))
+							ListAddLast ecplist, String(TextAreaSelLen(textarea, TEXTAREA_CHARS))
+							cursorindex=CountList(scplist)
 							lastline=curline
-							
 						EndIf
+						
 						gotoflag=False
-?Win32
 						redoflag=False
 						
 						Local n:TScintillaEventData=TScintillaEventData(EventExtra()) ' folding
 						Select n.Code
 							Case SCN_MARGINCLICK
-								Local line:Int=textarea.GetScintilla().SendEditor(SCI_LINEFROMPOSITION, n.position, 0)
-								Local levelclick:Int=textarea.GetScintilla().SendEditor(SCI_GETFOLDLEVEL, line)
+								Local line:Int=textarea.SendEditor(SCI_LINEFROMPOSITION, n.position, 0)
+								Local levelclick:Int=textarea.SendEditor(SCI_GETFOLDLEVEL, line)
 								If levelclick & SC_FOLDLEVELHEADERFLAG<>0
-									textarea.GetScintilla().SendEditor(SCI_TOGGLEFOLD, line, 0)
+									textarea.SendEditor(SCI_TOGGLEFOLD, line, 0)
 								EndIf
 						End Select
 ?
@@ -5718,9 +5760,8 @@ Type TOpenCode Extends TToolPanel
 		SetGadgetFilter code.textarea,code.FilterKey,code
 		SetTextAreaText code.textarea,"~n"
 		SetGadgetLayout code.textarea,EDGE_ALIGNED,EDGE_ALIGNED,EDGE_ALIGNED,EDGE_ALIGNED
-?Not Win32
-		code.RefreshStyle()
-?
+		'code.RefreshStyle()
+		
 		If isnew
 			code.SaveSource path
 			code.filesrc="~n"
@@ -5736,15 +5777,23 @@ Type TOpenCode Extends TToolPanel
 		If ExtractExt(path).toLower()="cxx" code.iscpp=True
 		If ExtractExt(path).toLower()="html" code.ishtml=True
 		If ExtractExt(path).toLower()="htm" code.ishtml=True
-?Win32
 		If ExtractExt(path).toLower()="h" code.isc=True
 		If ExtractExt(path).toLower()="hpp" code.iscpp=True
-		code.RefreshStyle()
-		code.textarea.GetScintilla().SendEditor(SCI_SetUndoCollection, 1, 0)  ' turn on saving of undo/redo actions
-		code.textarea.GetScintilla().SendEditor(SCI_EmptyUndoBuffer, 0, 0) ' clear the undo/redo action list
-		code.textarea.GetScintilla().SendEditor(SCI_SetSavePoint, 0, 0) ' set a save point
+		code.helpmap=""
+		For Local ts$=EachIn MapKeys(host.quickhelp.map)
+			code.helpmap :+ ts.toLower()+" "
+		Next
+		If code.iscpp Or code.isc
+			code.helpmap=CPPKEYWORDS
+		EndIf
+?Win32
+		code.textarea.SendEditor(SCI_SetUndoCollection, 1, 0)  ' turn on saving of undo/redo actions
+		code.textarea.SendEditor(SCI_EmptyUndoBuffer, 0, 0) ' clear the undo/redo action list
+		code.textarea.SendEditor(SCI_SetSavePoint, 0, 0) ' set a save point
 ?
-		ListAddLast code.cursorlist, String(0)
+		code.RefreshStyle()
+		ListAddLast code.scplist, String(0)
+		ListAddLast code.ecplist, String(0)
 		code.UpdateCode False
 		code.filesrc=TextAreaText(code.textarea)
 		Return code
@@ -6631,7 +6680,7 @@ Type TCodePlay
 			For Local f$=EachIn openlist
 				open=OpenSource(f$)
 				If open And f$=openlock open.SetLocked(True)
-				tmpProgValue:+tmpProgStep;UpdateProgBar progress,tmpProgValue
+				tmpProgValue:+tmpProgStep;UpdateProgBar progress,tmpProgValue				
 			Next
 		EndIf
 		
@@ -6642,7 +6691,7 @@ Type TCodePlay
 ' open files specified in command line		
 		For Local i:Int = 1 Until AppArgs.length
 			open=OpenSource(AppArgs[i])
-			tmpProgValue:+tmpProgStep;UpdateProgBar progress,tmpProgValue;PollSystem
+			tmpProgValue:+tmpProgStep;UpdateProgBar progress,tmpProgValue;PollSystem			
 		Next
 		
 		HideGadget splash;FreeGadget splash
@@ -7125,40 +7174,54 @@ Type TCodePlay
 							If currentpanel=helppanel
 								helppanel.Back;SelectPanel helppanel
 							Else
-								Local id%=0, los%=0, pan:TOpenCode=TOpenCode(currentpanel)
+?Win32
+								Local id%=0, los%=0, startpos$, endpos$
+								Local pan:TOpenCode=TOpenCode(currentpanel)
 								If pan.cursorindex>1
 									pan.cursorindex:-1
 								EndIf
-								For Local linenum:String=EachIn pan.cursorlist
+								For startpos=EachIn pan.scplist
 									id:+1
 									If pan.cursorindex=id
+										For endpos=EachIn pan.ecplist
+											los:+1
+											If pan.cursorindex=los Then Exit
+										Next
 										pan.gotoflag=True
-										los=pan.textarea.GetScintilla().SendEditor(SCI_LINESONSCREEN)
-										pan.textarea.GetScintilla().SendEditor(SCI_GOTOLINE, Int(linenum)+los)
-										pan.textarea.GetScintilla().SendEditor(SCI_GOTOLINE, Int(linenum))
+										los=pan.textarea.SendEditor(SCI_LINESONSCREEN)
+										pan.textarea.SendEditor(SCI_GOTOLINE, pan.textarea.LineAt(Int(startpos))+los)
+										pan.textarea.SetSelection(Int(startpos), Int(endpos), TEXTAREA_CHARS)
 										pan.lastline=TextAreaCursor(pan.textarea, TEXTAREA_LINES)
 									EndIf
 								Next
+?
 							EndIf
 							
 							Case TB_FORWARDS
 							If currentpanel=helppanel
 								helppanel.Forward;SelectPanel helppanel
 							Else
-								Local id%=0, los%=0, pan:TOpenCode=TOpenCode(currentpanel)
-								If pan.cursorindex<CountList(pan.cursorlist)
+?Win32
+								Local id%=0, los%=0, startpos$, endpos$
+								Local pan:TOpenCode=TOpenCode(currentpanel)
+								If pan.cursorindex<CountList(pan.scplist)
 									pan.cursorindex:+1
 								EndIf
-								For Local linenum:String=EachIn pan.cursorlist
+								For Local startpos:String=EachIn pan.scplist
 									id:+1
 									If pan.cursorindex=id
+										For endpos=EachIn pan.ecplist
+											los:+1
+											If pan.cursorindex=los Then Exit
+										Next
 										pan.gotoflag=True
-										los=pan.textarea.GetScintilla().SendEditor(SCI_LINESONSCREEN)
-										pan.textarea.GetScintilla().SendEditor(SCI_GOTOLINE, Int(linenum)+los)
-										pan.textarea.GetScintilla().SendEditor(SCI_GOTOLINE, Int(linenum))
+										los=pan.textarea.SendEditor(SCI_LINESONSCREEN)
+										pan.textarea.SendEditor(SCI_GOTOLINE, pan.textarea.LineAt(Int(startpos))+los)
+										pan.textarea.SetSelection(Int(startpos), Int(endpos), TEXTAREA_CHARS)
 										pan.lastline=TextAreaCursor(pan.textarea, TEXTAREA_LINES)
 									EndIf
 								Next
+?
 							EndIf
 							
 						End Select

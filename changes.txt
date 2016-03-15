@@ -29,11 +29,17 @@ Changes log (markcwm/munch - Feb 2016):
 - margin fg/bg color with system colors - checkbox in ide options tools tab
 - save with Unix line endings - checkbox in ide options
 - cursor history list with back/forward buttons
+- moved TScintilla methods to TScintillaGadget
+- cursor selection in cursor history list
+- autocomplete type/method/function in current file only
 
 To do:
-- intellisense?
-- code view in cpp files?
+- include/import autocomplete
+- save/load code folding data?
+- code view in cpp files
+- linux version
 
 To fix:
+- cursor selecting multiple lines?
 - undo/redo cursor position?
 - find sometimes not working?
