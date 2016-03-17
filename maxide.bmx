@@ -4117,7 +4117,9 @@ Type TOpenCode Extends TToolPanel
 	Field	editmenu:TGadget
 	Field	codenode:TCodeNode
 	Field	dirtynode,uc
-	Field helpmap$,methodlist:TList=New TList,redoflag%,indentlen%,lastline%
+	Field helpmap$,methodlist:TList=New TList
+	Field redoflag%,indentlen%,lastline%
+	Field codeflag%,foldmap:TMap=New TMap
 	Field gotoflag%,cursorindex%=1,scplist:TList=New TList,ecplist:TList=New TList
 	
 	Function RefreshHighlightingMsg()
@@ -4132,15 +4134,25 @@ Type TOpenCode Extends TToolPanel
 		If c>=123 Return True
 	End Function
 	
-	Function GetTokenName$(src$, pos%) ' gets first word
-		Local id%=pos, spos%=0, epos%=0
-		While id<src.length
-			If spos>0 And IsAlphaNumeric(src[id])=False Then epos=id ; Exit
-			If src[id]=9 Or src[id]=32 Then spos=id+1
-			If src[id]=10 Or src[id]=13 Then Exit
-			id:+1
-		Wend
+	' Get word after type/method/function else first word
+	Function GetTokenName$(src$, pos%)
+		Local spos%=-1, epos%=-1
+		FindName(src, pos, spos, epos)
+		Local name$=src[spos..epos].ToLower()
+		If name="method" Or name="function" Or name="type"
+			pos=epos ; spos=-1 ; epos=-1
+			FindName(src, pos, spos, epos)
+		EndIf
 		Return src[spos..epos]
+	End Function
+	
+	' Find first word positions
+	Function FindName(src$, pos%=0, spos:Int Var, epos:Int Var)		
+		While pos<src.length
+			If spos>-1 And epos=-1 And IsAlphaNumeric(src[pos])=False Then epos=pos ; Exit
+			If spos=-1 And IsAlphaNumeric(src[pos])=True Then spos=pos
+			pos:+1
+		Wend
 	End Function
 	
 	Function IsAlphaNumeric%(c%)
@@ -4586,6 +4598,8 @@ Type TOpenCode Extends TToolPanel
 			textarea.SendEditor(SCI_CLEARCMDKEY, key+(SCMOD_CTRL Shl 16), 0)
 			textarea.SendEditor(SCI_CLEARCMDKEY, key+((SCMOD_CTRL+SCMOD_SHIFT) Shl 16), 0)
 		Next
+		'textarea.SendEditor(SCI_CLEARCMDKEY, KEY_TAB, 0)
+		'textarea.SendEditor(SCI_CLEARCMDKEY, KEY_TAB+((SCMOD_CTRL+SCMOD_SHIFT) Shl 16), 0)
 		
 		' symbol markers
 		textarea.SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDER, SC_MARK_ARROW) ' closed
@@ -5199,47 +5213,51 @@ Type TOpenCode Extends TToolPanel
 	End Method
 	
 	Method IndentCode()
-		Local	a$
+		Local	a$,pos%
 ' blockindent
-		Local p0 = TextAreaCursor(textarea,TEXTAREA_LINES)
-		Local p1 = TextAreaSelLen(textarea,TEXTAREA_LINES)
+		Local p0 = TextAreaCursor(textarea, TEXTAREA_LINES)
+		Local p1 = TextAreaSelLen(textarea, TEXTAREA_LINES)
 ' v122: make sure the entire block is selected (start cursor pos may in the middle of the line)
-		SelectTextAreaText textarea , p0 , p1 , TEXTAREA_LINES
+		SelectTextAreaText textarea, p0, p1, TEXTAREA_LINES
+		Local cp = TextAreaCursor(textarea, TEXTAREA_CHARS)
 		UpdateCursor
+		a$="~t"+TextAreaText(textarea, p0, p1, TEXTAREA_LINES)
 		For Local i:Int = 0 Until p1
-			a$="~t"+TextAreaText(textarea,p0+i,1,TEXTAREA_LINES)
-			SetTextAreaText textarea,a$,p0+i,1,TEXTAREA_LINES
+			pos=a.Find("~n", pos+1)
+			If pos>-1 Then a=a[..pos+1]+"~t"+a[pos+1..]
 		Next
-		SelectTextAreaText textarea,p0,p1,TEXTAREA_LINES
+		SetTextAreaText textarea, a$, p0, p1+1, TEXTAREA_LINES
+		SelectTextAreaText textarea, cp, a.length-1, TEXTAREA_CHARS
 		UpdateCursor
 		UpdateCode
 	End Method
-
+	
 	Method OutdentCode()
-		Local	a$,modified
+		Local	a$,pos%
 ' blockoutdent
-		Local p0 = TextAreaCursor(textarea,TEXTAREA_LINES)
-		Local p1 = TextAreaSelLen(textarea,TEXTAREA_LINES)
+		Local p0 = TextAreaCursor(textarea, TEXTAREA_LINES)
+		Local p1 = TextAreaSelLen(textarea, TEXTAREA_LINES)
 ' v122: make sure the entire block is selected (start cursor pos may in the middle of the line)
-		SelectTextAreaText textarea , p0 , p1 , TEXTAREA_LINES
+		SelectTextAreaText textarea, p0, p1, TEXTAREA_LINES
+		Local cp = TextAreaCursor(textarea, TEXTAREA_CHARS)
 		UpdateCursor
-		For Local i:Int = 0 Until p1
-			a$=TextAreaText(textarea,p0+i,1,TEXTAREA_LINES)
-			If a[0]=9 a$=a$[1..];modified=True
-			SetTextAreaText textarea,a$,p0+i,1,TEXTAREA_LINES
-		Next
-		If Not modified
-			For Local i:Int = 0 Until p1
-				a$=TextAreaText(textarea,p0+i,1,TEXTAREA_LINES)
-				If a[0]=32 a$=a$[1..]
-				SetTextAreaText textarea,a$,p0+i,1,TEXTAREA_LINES
-			Next	
+		a$=TextAreaText(textarea, p0, p1, TEXTAREA_LINES)
+		If a[0]=9
+			a=a[1..]
+		Else ' outdent nothing breaks redo
+			SelectTextAreaText textarea, cp, a.length-1, TEXTAREA_CHARS
+			Return
 		EndIf
-		SelectTextAreaText textarea,p0,p1,TEXTAREA_LINES
+		For Local i:Int = 0 Until p1
+			pos=a.Find("~n", pos+1)
+			If a[pos+1]=9 a=a[..pos+1]+a[pos+2..]
+		Next
+		SetTextAreaText textarea, a$, p0, p1+1, TEXTAREA_LINES
+		SelectTextAreaText textarea, cp, a.length-1, TEXTAREA_CHARS
 		UpdateCursor
 		UpdateCode
 	End Method
-
+	
 	Function FilterKey(event:TEvent,context:Object)
 '		If event.id<>EVENT_KEYCHAR Return 1
 		Local id=event.id
@@ -5289,7 +5307,7 @@ Type TOpenCode Extends TToolPanel
 				this.textarea.SendEditorString(SCI_AUTOCSHOW, wl, keylist)
 			EndIf
 		EndIf
-?
+?Not Win32
 		If id=EVENT_KEYCHAR And this And key=KEY_TAB And TextAreaSelLen( this.textarea,TEXTAREA_CHARS )
 			Select mods
 				Case MODIFIER_NONE
@@ -5297,12 +5315,9 @@ Type TOpenCode Extends TToolPanel
 				Case MODIFIER_SHIFT
 					this.OutdentCode
 			End Select
-?Not Win32
 			Return 0
-?
 		EndIf
-
-?Not Win32
+		
 		If id=EVENT_KEYDOWN And key=KEY_ENTER And this And this.host.options.autoindent
 			this.AutoIndent()
 			Return 0
@@ -5336,10 +5351,21 @@ Type TOpenCode Extends TToolPanel
 						UpdateCode
 						
 					Case EVENT_GADGETSELECT
-						'DebugLog "SELECT "
+						'DebugLog "SELECT "+name+" "+path
 						UpdateCursor
-						
 ?Win32
+						If codeflag=0
+							codeflag=1
+							For Local line$=EachIn MapKeys(foldmap)
+								Local level$=String(MapValueForKey(foldmap, line))
+								If Int(level)<SC_FOLDLEVELHEADERFLAG ' buggy fix
+									level=String(SC_FOLDLEVELHEADERFLAG+SC_FOLDLEVELBASE+1)
+								EndIf
+								textarea.SendEditor(SCI_SETFOLDLEVEL, Int(line), Int(level))
+								textarea.SendEditor(SCI_TOGGLEFOLD, Int(line))
+							Next
+						EndIf
+						
 						Local id%=0, curline%=TextAreaCursor(textarea, TEXTAREA_LINES)
 						If gotoflag=False And Abs(lastline-curline)>textarea.SendEditor(SCI_LINESONSCREEN)
 							If cursorindex<CountList(scplist)
@@ -5371,8 +5397,21 @@ Type TOpenCode Extends TToolPanel
 							Case SCN_MARGINCLICK
 								Local line:Int=textarea.SendEditor(SCI_LINEFROMPOSITION, n.position, 0)
 								Local levelclick:Int=textarea.SendEditor(SCI_GETFOLDLEVEL, line)
-								If levelclick & SC_FOLDLEVELHEADERFLAG<>0
+								If (levelclick & SC_FOLDLEVELHEADERFLAG)<>0
 									textarea.SendEditor(SCI_TOGGLEFOLD, line, 0)
+									Local inlist%=0
+									If textarea.SendEditor(SCI_GETFOLDEXPANDED, line, 0)=True ' expanded/remove
+										For Local temp$=EachIn MapKeys(foldmap)
+											If Int(temp)=line Then MapRemove foldmap, temp ; Exit
+										Next
+									Else ' contracted/add
+										For Local temp$=EachIn MapKeys(foldmap)
+											If Int(temp)=line Then inlist=True ; Exit
+										Next
+										If inlist=False
+											MapInsert foldmap, String(line), String(levelclick)
+										EndIf
+									EndIf
 								EndIf
 						End Select
 ?
@@ -5608,6 +5647,7 @@ Type TOpenCode Extends TToolPanel
 						If Not Save() Return True
 					EndIf
 				EndIf
+				WriteFold()
 				If codenode Then
 					codenode.Free()
 					codenode=Null
@@ -5695,7 +5735,64 @@ Type TOpenCode Extends TToolPanel
 				GadgetPrint textarea
 		End Select
 	End Method
+	
+	Method ReadFold()
+?Win32
+		Local found%, fold$, p0%, p1%, line$, level$
+		Local stream:TStream=OpenFile(host.bmxpath+"/cfg/fold.txt")
+		If Not stream Then Return
 		
+		While Not Eof(stream)
+			fold=ReadLine(stream)
+			If fold.Find(path, 0)>-1 Then found=True ; Exit
+		Wend
+		
+		If found=True
+			p0=fold.Find("|", 0)
+			p1=fold.Find(" ", p0+1)
+			line=GetTokenName(fold, p0+1) ' curpos
+			level=GetTokenName(fold, p1+1) ' curlen
+			SelectTextAreaText(textarea, Int(line), Int(level))
+			UpdateCursor
+			p0=fold.Find("|", p1)
+			ClearMap foldmap
+			
+			While p0<fold.length
+				line=GetTokenName(fold, p0+1)
+				p1=fold.Find(",", p0+1)
+				level=GetTokenName(fold, p1+1)
+				If line>0 And level>0 Then MapInsert(foldmap, line, level)
+				p0=fold.Find(" ", p0+1)
+				If p0=-1 Then Exit
+			Wend
+		EndIf
+		CloseStream stream
+?
+	End Method
+	
+	Method WriteFold()
+?Win32
+		Local file$, foldlines$, line$
+		Local stream:TStream=OpenFile(host.bmxpath+"/cfg/fold.txt")
+		If Not stream Then stream=WriteFile(host.bmxpath+"/cfg/fold.txt")
+		If Not stream Then Return
+		
+		While Not Eof(stream)
+			line=ReadLine(stream)
+			If line.Find(path, 0)=-1 And line.length>7 Then file :+ (line+"~n")
+		Wend
+		
+		For line=EachIn MapKeys(foldmap)
+			foldlines :+ line+","+String(MapValueForKey(foldmap, line))+" "
+		Next
+		
+		SeekStream stream, 0
+		If path Then WriteLine stream, path+"|"+cursorpos+" "+cursorlen+"|"+foldlines+"|"
+		WriteLine stream, file
+		CloseStream stream
+?
+	End Method
+	
 	Function CreateEditMenu:TGadget()
 		Local	edit:TGadget = CreateMenu("{{popup_edit}}",0,Null)
 		CreateMenu "{{popup_edit_quickhelp}}",MENUQUICKHELP,edit
@@ -6244,6 +6341,7 @@ Type TCodePlay
 			EndIf
 			CloseProgress
 			If code
+				code.ReadFold()
 				ActivateGadget code.textarea
 				code.GetNode().Refresh
 			EndIf

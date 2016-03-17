@@ -32,14 +32,15 @@ Changes log (markcwm/munch - Feb 2016):
 - moved TScintilla methods to TScintillaGadget
 - cursor selection in cursor history list
 - autocomplete type/method/function in current file only
+- indent/outdent code adding extra lines and breaking undo
+- save/load code folded lines and cursor position
 
 To do:
 - include/import autocomplete
-- save/load code folding data?
 - code view in cpp files
 - linux version
 
 To fix:
-- cursor selecting multiple lines?
+- cursor selecting multiple lines on double-click sometimes?
 - undo/redo cursor position?
 - find sometimes not working?
