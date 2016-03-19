@@ -280,6 +280,10 @@ Type TQuickHelp
 		map.Insert t.ToLower(),New TToken.Create(t$,l$,a$)
 	End Method
 	
+	Method AddCommandCC:TQuickHelp(t$,l$,a$)
+		map.Insert t,New TToken.Create(t$,l$,a$)
+	End Method
+	
 	Method Token$(cmd$)
 		Local t:TToken = TToken(map.ValueForKey(cmd.toLower()))
 		If t Return t.token
@@ -295,7 +299,7 @@ Type TQuickHelp
 		If t Return t.ref
 	End Method
 	
-	Function LoadCommandsTxt:TQuickHelp(bmxpath$)
+	Function LoadCommandsTxt:TQuickHelp(bmxpath$,camelcase%=False)
 		Local	text$
 		Local	qh:TQuickHelp
 		Local	i:Int,c,p,q
@@ -323,8 +327,12 @@ Type TQuickHelp
 			If q>=0
 				help=l[..q]
 				anchor=l[q+1..]
-			EndIf			
-			qh.AddCommand token,help,anchor
+			EndIf
+			If camelcase=True
+				qh.AddCommandCC token,help,anchor
+			Else
+				qh.AddCommand token,help,anchor			
+			EndIf
 		Next
 		Return qh
 	End Function
@@ -1568,7 +1576,7 @@ Type TOptionsRequester Extends TPanelRequester
 ?
 		helpmap=""
 		For Local ts$=EachIn MapKeys(host.quickhelp.map)
-			helpmap :+ ts.toLower()+" "
+			helpmap :+ (ts+" ")
 		Next
 		
 		SetDefaults()
@@ -3708,7 +3716,6 @@ Type TOutputPanel Extends TToolPanel	'used build and run
 ?Win32
 	Field	output:TScintillaGadget
 ?
-	Field	helpmap$
 
 	Field	process:TProcess
 	Field	pipe:TStream
@@ -3748,6 +3755,8 @@ Type TOutputPanel Extends TToolPanel	'used build and run
 	Method Write(mess$)
 		If Not output Open()
 		AddTextAreaText output,mess.Replace("~0","")
+		Local cp%=TextAreaLen(output)
+		SelectTextAreaText output, cp, 0
 	End Method
 
 	Method Execute(cmd$,mess$="",exe$="",home=True,owner:TTool=Null)
@@ -5260,6 +5269,7 @@ Type TOpenCode Extends TToolPanel
 	
 	Function FilterKey(event:TEvent,context:Object)
 '		If event.id<>EVENT_KEYCHAR Return 1
+		Local charx%=0
 		Local id=event.id
 		Local key=event.data
 		Local mods=event.mods
@@ -5290,7 +5300,8 @@ Type TOpenCode Extends TToolPanel
 			
 			If token.length>0
 				Local temp$,keylist:String=""
-				For temp=EachIn MapKeys(this.host.quickhelp.map)
+				For temp=EachIn MapKeys(this.host.quickhelpcc.map)
+				DebugLog ">"+temp
 					If temp.ToLower().StartsWith(token.toLower())
 						keylist :+ (temp+" ")
 						count:+1
@@ -5331,8 +5342,9 @@ Type TOpenCode Extends TToolPanel
 			EndIf
 		EndIf
 		
-		If id=EVENT_KEYCHAR And key=KEY_ENTER And this		
+		If id=EVENT_KEYCHAR And key=KEY_ENTER And this
 			SelectTextAreaText(this.textarea, TextAreaCursor(this.textarea)+this.indentlen, 0)
+			this.textarea.SendEditor(SCI_CHOOSECARETX)
 		EndIf
 ?
 
@@ -5351,74 +5363,102 @@ Type TOpenCode Extends TToolPanel
 						UpdateCode
 						
 					Case EVENT_GADGETSELECT
-						'DebugLog "SELECT "+name+" "+path
+						'DebugLog "SELECT "
 						UpdateCursor
-?Win32
-						If codeflag=0
-							codeflag=1
-							For Local line$=EachIn MapKeys(foldmap)
-								Local level$=String(MapValueForKey(foldmap, line))
-								If Int(level)<SC_FOLDLEVELHEADERFLAG ' buggy fix
-									level=String(SC_FOLDLEVELHEADERFLAG+SC_FOLDLEVELBASE+1)
-								EndIf
-								textarea.SendEditor(SCI_SETFOLDLEVEL, Int(line), Int(level))
-								textarea.SendEditor(SCI_TOGGLEFOLD, Int(line))
-							Next
-						EndIf
+						UpdateFold()
 						
-						Local id%=0, curline%=TextAreaCursor(textarea, TEXTAREA_LINES)
-						If gotoflag=False And Abs(lastline-curline)>textarea.SendEditor(SCI_LINESONSCREEN)
-							If cursorindex<CountList(scplist)
-								For Local startpos:String=EachIn scplist
-									id:+1
-									If cursorindex<id
-										ListRemove(scplist, startpos)
-									EndIf
-								Next
-								id=0
-								For Local endpos:String=EachIn ecplist
-									id:+1
-									If cursorindex<id
-										ListRemove(ecplist, endpos)
-									EndIf
-								Next
-							EndIf
-							ListAddLast scplist, String(TextAreaCursor(textarea, TEXTAREA_CHARS))
-							ListAddLast ecplist, String(TextAreaSelLen(textarea, TEXTAREA_CHARS))
-							cursorindex=CountList(scplist)
-							lastline=curline
-						EndIf
-						
-						gotoflag=False
-						redoflag=False
-						
-						Local n:TScintillaEventData=TScintillaEventData(EventExtra()) ' folding
-						Select n.Code
-							Case SCN_MARGINCLICK
-								Local line:Int=textarea.SendEditor(SCI_LINEFROMPOSITION, n.position, 0)
-								Local levelclick:Int=textarea.SendEditor(SCI_GETFOLDLEVEL, line)
-								If (levelclick & SC_FOLDLEVELHEADERFLAG)<>0
-									textarea.SendEditor(SCI_TOGGLEFOLD, line, 0)
-									Local inlist%=0
-									If textarea.SendEditor(SCI_GETFOLDEXPANDED, line, 0)=True ' expanded/remove
-										For Local temp$=EachIn MapKeys(foldmap)
-											If Int(temp)=line Then MapRemove foldmap, temp ; Exit
-										Next
-									Else ' contracted/add
-										For Local temp$=EachIn MapKeys(foldmap)
-											If Int(temp)=line Then inlist=True ; Exit
-										Next
-										If inlist=False
-											MapInsert foldmap, String(line), String(levelclick)
-										EndIf
-									EndIf
-								EndIf
-						End Select
-?
 				End Select
 		End Select
 	End Method
-			
+	
+	Method UpdateFold()
+?Win32
+		If codeflag=0
+			codeflag=1
+			For Local line$=EachIn MapKeys(foldmap)
+				Local level$=String(MapValueForKey(foldmap, line))
+				If Int(level)<SC_FOLDLEVELBASE ' level saved wrong assume level 1
+					level=String(SC_FOLDLEVELHEADERFLAG+SC_FOLDLEVELBASE+1)
+				EndIf
+				textarea.SendEditor(SCI_SETFOLDLEVEL, Int(line), Int(level))
+				textarea.SendEditor(SCI_TOGGLEFOLD, Int(line))
+			Next
+		EndIf
+		
+		Local id%=0, curline%=TextAreaCursor(textarea, TEXTAREA_LINES)
+		If gotoflag=False And Abs(lastline-curline)>textarea.SendEditor(SCI_LINESONSCREEN)
+			If cursorindex<CountList(scplist)
+				For Local startpos:String=EachIn scplist
+					id:+1
+					If cursorindex<id
+						ListRemove(scplist, startpos)
+					EndIf
+				Next
+				id=0
+				For Local endpos:String=EachIn ecplist
+					id:+1
+					If cursorindex<id
+						ListRemove(ecplist, endpos)
+					EndIf
+				Next
+			EndIf
+			ListAddLast scplist, String(TextAreaCursor(textarea, TEXTAREA_CHARS))
+			ListAddLast ecplist, String(TextAreaSelLen(textarea, TEXTAREA_CHARS))
+			cursorindex=CountList(scplist)
+			lastline=curline
+		EndIf
+		
+		gotoflag=False
+		redoflag=False
+		
+		Local line%, temp$, rc%, mk%, ak%, ek%, fk%, eek%, ef%=0
+		Local vl%=textarea.SendEditor(SCI_GETFIRSTVISIBLELINE)
+		Local los%=textarea.SendEditor(SCI_LINESONSCREEN)
+		For line=vl To vl+los
+			temp=TextAreaText(textarea, line, 0, TEXTAREA_LINES).ToLower()
+			rc=temp.Find("'", 0)
+			mk=temp.Find("method", 0)
+			ak=temp.Find("abstract", 0)
+			If rc=-1 Then rc=temp.length
+			If ak>-1 And ak<rc And mk>-1
+				textarea.SendEditor(SCI_SETFOLDLEVEL, line, SC_FOLDLEVELBASE)
+			EndIf
+			ek=temp.Find("extern", 0)
+			fk=temp.Find("function", 0)
+			eek=temp.Find("end extern", 0)
+			If eek=-1 Then eek=temp.Find("endextern", 0)
+			If ek>-1 And ek<rc Then ef=True
+			If eek>-1 And eek<rc Then ef=False
+			If ef=True And fk>-1 And fk<rc
+				textarea.SendEditor(SCI_SETFOLDLEVEL, line, SC_FOLDLEVELBASE)
+			EndIf
+		Next
+		
+		Local n:TScintillaEventData=TScintillaEventData(EventExtra()) ' folding
+		Select n.Code
+			Case SCN_MARGINCLICK
+				Local line:Int=textarea.SendEditor(SCI_LINEFROMPOSITION, n.position, 0)
+				Local levelclick:Int=textarea.SendEditor(SCI_GETFOLDLEVEL, line)
+				If (levelclick & SC_FOLDLEVELHEADERFLAG)<>0
+					textarea.SendEditor(SCI_TOGGLEFOLD, line, 0)
+					Local inlist%=0
+					If textarea.SendEditor(SCI_GETFOLDEXPANDED, line, 0)=True ' expanded/remove
+						For Local temp$=EachIn MapKeys(foldmap)
+							If Int(temp)=line Then MapRemove(foldmap, temp) ; Exit
+						Next
+					Else ' contracted/add
+						For Local temp$=EachIn MapKeys(foldmap)
+							If Int(temp)=line Then inlist=True ; Exit
+						Next
+						If inlist=False
+							MapInsert foldmap, String(line), String(levelclick)
+						EndIf
+					EndIf
+				EndIf
+		End Select
+?
+	End Method
+	
 	Method SetDirty( bool )
 		If dirty=bool Return
 		dirty=bool
@@ -5772,14 +5812,15 @@ Type TOpenCode Extends TToolPanel
 	
 	Method WriteFold()
 ?Win32
-		Local file$, foldlines$, line$
+		Local file$, foldlines$, line$, maxfiles%=0
 		Local stream:TStream=OpenFile(host.bmxpath+"/cfg/fold.txt")
 		If Not stream Then stream=WriteFile(host.bmxpath+"/cfg/fold.txt")
 		If Not stream Then Return
 		
 		While Not Eof(stream)
 			line=ReadLine(stream)
-			If line.Find(path, 0)=-1 And line.length>7 Then file :+ (line+"~n")
+			maxfiles:+1
+			If line.Find(path, 0)=-1 And line.length>7 And maxfiles<500 Then file :+ ("~n"+line)
 		Wend
 		
 		For line=EachIn MapKeys(foldmap)
@@ -5787,8 +5828,7 @@ Type TOpenCode Extends TToolPanel
 		Next
 		
 		SeekStream stream, 0
-		If path Then WriteLine stream, path+"|"+cursorpos+" "+cursorlen+"|"+foldlines+"|"
-		WriteLine stream, file
+		If path.length>5 Then WriteLine stream, path+"|"+cursorpos+" "+cursorlen+"|"+foldlines+"|"+file
 		CloseStream stream
 ?
 	End Method
@@ -5878,7 +5918,7 @@ Type TOpenCode Extends TToolPanel
 		If ExtractExt(path).toLower()="hpp" code.iscpp=True
 		code.helpmap=""
 		For Local ts$=EachIn MapKeys(host.quickhelp.map)
-			code.helpmap :+ ts.toLower()+" "
+			code.helpmap :+ (ts+" ")
 		Next
 		If code.iscpp Or code.isc
 			code.helpmap=CPPKEYWORDS
@@ -5973,7 +6013,7 @@ Type TCodePlay
 	Field debugenable:TGadget,debugenabled	'menu,state
 	Field threadedenable:TGadget,threadedenabled
 	Field guienable:TGadget,guienabled		'menu,state
-	Field quickhelp:TQuickHelp
+	Field quickhelp:TQuickHelp,quickhelpcc:TQuickHelp
 	Field running
 	Field recentmenu:TGadget
 	Field recentfiles:TList=New TList
@@ -6663,6 +6703,7 @@ Type TCodePlay
 		SetGadgetPixmap(window, LoadPixmapPNG("incbin::window_icon.png"), GADGETPIXMAP_ICON )
 		?
 		quickhelp=TQuickHelp.LoadCommandsTxt(bmxpath)
+		quickhelpcc=TQuickHelp.LoadCommandsTxt(bmxpath,True)
 		cmdlinereq=TCmdLineRequester.Create(Self)
 		'syncmodsreq=TSyncModsRequester.Create(Self)
 		gotoreq=TGotoRequester.Create(Self)

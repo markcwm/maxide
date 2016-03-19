@@ -34,6 +34,10 @@ Changes log (markcwm/munch - Feb 2016):
 - autocomplete type/method/function in current file only
 - indent/outdent code adding extra lines and breaking undo
 - save/load code folded lines and cursor position
+- disabled folding for abstract methods and extern functions
+- output window not updating line position
+- caret loosing x position on AutoIndent
+- camelcase for autocomplete
 
 To do:
 - include/import autocomplete
