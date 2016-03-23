@@ -38,8 +38,11 @@ Changes log (markcwm/munch - Feb 2016):
 - output window not updating line position
 - caret loosing x position on AutoIndent
 - camelcase for autocomplete
+- custom code folding for type/method/function/extern
+- fold all and unfold all menu items
 
 To do:
+- f2 open source help
 - include/import autocomplete
 - code view in cpp files
 - linux version
