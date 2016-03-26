@@ -4131,7 +4131,7 @@ Type TOpenCode Extends TToolPanel
 	Field	dirtynode,uc
 	Field helpmap$,methodlist:TList=New TList
 	Field redoflag%,indentlen%,lastline%
-	Field codeflag%,foldmap:TMap=New TMap,numlines%,foldlist:TList=New TList,foldedlist:TList=New TList
+	Field foldmap:TMap=New TMap,numlines%,foldlist:TList=New TList,foldedlist:TList=New TList
 	Field gotoflag%,cursorindex%=1,scplist:TList=New TList,ecplist:TList=New TList
 	
 	Function RefreshHighlightingMsg()
@@ -4364,7 +4364,6 @@ Type TOpenCode Extends TToolPanel
 			parsebmx(root) ' stopped code view parse on non bmx files
 		ElseIf iscpp Or isc
 			'parsecpp(root)
-			'DebugLog "CPP"
 		EndIf
 		If codenode
 			If host.options.sortcode root.sortkids
@@ -5321,7 +5320,7 @@ Type TOpenCode Extends TToolPanel
 			If token.length>0
 				Local temp$,keylist:String=""
 				For temp=EachIn MapKeys(this.host.quickhelpcc.map)
-				DebugLog ">"+temp
+				'DebugLog ">"+temp
 					If temp.ToLower().StartsWith(token.toLower())
 						keylist :+ (temp+" ")
 						count:+1
@@ -5353,8 +5352,9 @@ Type TOpenCode Extends TToolPanel
 			this.AutoIndent()
 			Return 0
 		EndIf
-?Win32		
+?Win32
 		If id=EVENT_KEYDOWN And key=KEY_ENTER And this
+			this.textarea.SendEditor(SCI_BEGINUNDOACTION)
 			If this.textarea.SendEditor(SCI_AUTOCGETCURRENT)=-1
 				this.AutoIndent()
 			Else
@@ -5365,12 +5365,21 @@ Type TOpenCode Extends TToolPanel
 		If id=EVENT_KEYCHAR And key=KEY_ENTER And this
 			SelectTextAreaText(this.textarea, TextAreaCursor(this.textarea)+this.indentlen, 0)
 			this.textarea.SendEditor(SCI_CHOOSECARETX)
+			this.textarea.SendEditor(SCI_ENDUNDOACTION)
+		EndIf
+		
+		If id=EVENT_KEYCHAR And (key=KEY_ENTER Or key=KEY_BACKSPACE) And this And this.host.options.codefold
+			this.UpdateCursor()
+			Local fl%=this.textarea.SendEditor(SCI_GETFOLDLEVEL, this.textarea.LineAt(this.oldpos))
+			If (fl & SC_FOLDLEVELHEADERFLAG)>0 Or Abs(this.cursorpos-this.oldpos)<3
+				this.ParseBmxNew(this.textarea.LineAt(this.oldpos), this.textarea.LineAt(this.cursorpos)+1, True)
+			EndIf
 		EndIf
 ?
 
 		Return 1
 	End Function
-
+	
 	Method OnEvent()
  		Select EventSource()
 			Case textarea
@@ -5379,18 +5388,14 @@ Type TOpenCode Extends TToolPanel
 						PopupWindowMenu host.window,editmenu
 						
 					Case EVENT_GADGETACTION
-						'DebugLog "ACTION "+path+" numlines="+numlines
+						'DebugLog "ACTION "+path
 						UpdateCode
-						ParseBmxFold()
-?Win32
-						numlines=textarea.SendEditor(SCI_GETLINECOUNT)
-?
 						
 					Case EVENT_GADGETSELECT
 						'DebugLog "SELECT "
 						UpdateCursor
-						UpdateFold()
-						UpdateCursorHistory()
+						If host.options.codefold Then UpdateFold()
+						CursorHistory()
 						gotoflag=False
 						redoflag=False
 						
@@ -5398,17 +5403,22 @@ Type TOpenCode Extends TToolPanel
 		End Select
 	End Method
 	
-	Method ParseBmxFold() ' levels=1..512 ie. 1000, LEVELBASE=1024, ?=2048, WHITEFLAG=4096, HEADERFLAG=8192
+	Method ParseBmxNew(spos%=0, epos%=1, partial=False)
+		' levels=1..512 ie. 1000, LEVELBASE=1024, ?=2048, WHITEFLAG=4096, HEADERFLAG=8192
 ?Win32
 		Local fvl%, line%, level%, curline$, rc%, tk%, mk%, ak%, ek%, fk%, ef%
-		Local tke%, mke%, fke%, eke%, flags%, klen%
-		If textarea.SendEditor(SCI_GETLINECOUNT)=numlines Then Return
-		numlines=textarea.SendEditor(SCI_GETLINECOUNT)
-		ClearMap foldmap
-		ClearList foldlist
-		ef=0 ; line=0 ; level=0
+		Local tke%, mke%, fke%, eke%, flags%, klen%, tpos%
+		If Not isbmx Then Return
+		If spos>epos Then tpos=spos ; spos=epos ; epos=tpos
+		If partial=False
+			ClearMap foldmap
+			ClearList foldlist
+			epos=textarea.SendEditor(SCI_GETLINECOUNT)
+		EndIf
+		line=spos ; level=0 ; ef=0
+		'DebugLog "spos="+spos+" epos="+epos+" partial="+partial
 		
-		While line<numlines
+		While line<epos
 			curline=TextAreaText(textarea, line, 0, TEXTAREA_LINES).ToLower()
 			flags=0 'SC_FOLDLEVELBASE
 			rc=curline.Find("'", 0)
@@ -5423,7 +5433,6 @@ Type TOpenCode Extends TToolPanel
 				tke=curline.Find("end", 0)
 				If tke>0 And tke<rc And curline[tke-1]>32 Then tke=curline.Find("endtype", 0)
 				If tke>-1 And tke<rc
-					'tk=-1
 					level:-1
 					flags:|SC_FOLDLEVELWHITEFLAG
 					'DebugLog "endtype="+curline[tke..rc]+"="+line+" lev="+level
@@ -5490,19 +5499,111 @@ Type TOpenCode Extends TToolPanel
 			EndIf
 			
 			If level<0 Then level=0
-			If (flags & SC_FOLDLEVELHEADERFLAG)>0 Or (flags & SC_FOLDLEVELWHITEFLAG)>0
+			Local fl%=textarea.SendEditor(SCI_GETFOLDLEVEL, line)
+			If fl<>SC_FOLDLEVELBASE
+				'DebugLog "line="+line+"fl= "+fl
+				textarea.SendEditor(SCI_SETFOLDLEVEL, line, SC_FOLDLEVELBASE)
+			EndIf
+			If (flags & SC_FOLDLEVELHEADERFLAG)>0
+				'DebugLog "line="+line+"flags= "+flags
+				textarea.SendEditor(SCI_SETFOLDLEVEL, line, level+SC_FOLDLEVELHEADERFLAG+SC_FOLDLEVELBASE)
+			EndIf
+			If (flags & SC_FOLDLEVELHEADERFLAG)>0 And partial=False
 				MapInsert foldmap, String(line), String(level+flags)
 				ListAddLast foldlist, String(line)
-				'DebugLog "line="+line+" level="+level
+			EndIf
+			If (flags & SC_FOLDLEVELWHITEFLAG)>0 And partial=False
+				MapInsert foldmap, String(line), String(level+flags)
+				ListAddLast foldlist, String(line)
+				'DebugLog "line="+line+" level="+level+" flags="+flags
 			EndIf
 			line:+1
 		Wend
 ?
 	End Method
 	
+	Method ReadFold()
+?Win32
+		Local found%, file$, p0%, p1%, line$, level$
+		Local stream:TStream=ReadFile(host.bmxpath+"/cfg/fold.txt")
+		If Not stream Then Return
+		
+		While Not Eof(stream)
+			file=ReadLine(stream)
+			If file.Find(path, 0)>-1 Then found=True ; Exit
+		Wend
+		
+		If found=True
+			p0=file.Find("|", 0)
+			p1=file.Find(" ", p0+1)
+			line=GetTokenName(file, p0+1) ' curpos
+			level=GetTokenName(file, p1+1) ' curlen
+			SelectTextAreaText(textarea, Int(line), Int(level))
+			UpdateCursor
+			ClearList foldedlist
+			p0=file.Find("|", p1)
+			
+			While p1<file.length
+				p1=file.Find(" ", p1+1)
+				line=file[p0+1..p1]
+				p0=p1
+				If p1=-1 Then Exit
+				If line>0 Then ListAddLast(foldedlist, line)
+			Wend
+		EndIf
+		CloseStream stream
+		
+		Local value$, lev%, header%, footer%, curline$, length%
+		
+		For line=EachIn foldedlist
+			If textarea.SendEditor(SCI_GETFOLDEXPANDED, Int(line))=True
+				length=0
+				For curline=EachIn foldlist
+					Local val$=String(MapValueForKey(foldmap, curline))
+					lev=Int(val) & SC_FOLDLEVELNUMBERMASK
+					footer=Int(val) & SC_FOLDLEVELWHITEFLAG
+					If Int(curline)=Int(line) Then length=lev+SC_FOLDLEVELBASE
+					If footer>0 And length>0 And length-1=lev+SC_FOLDLEVELBASE
+						'DebugLog "footer lev="+lev+" curline="+Int(curline)+" line="+line
+						length=Int(curline)-Int(line) ; Exit
+					EndIf
+				Next
+				'DebugLog "hide line="+line+" length="+length
+				textarea.SendEditor(SCI_HIDELINES, Int(line)+1, Int(line)+length)
+				textarea.SendEditor(SCI_SETFOLDEXPANDED, Int(line), 0)
+			EndIf
+		Next
+?
+	End Method
+	
+	Method WriteFold()
+?Win32
+		Local file$, foldlines$, line$, maxfiles%=0
+		Local stream:TStream=ReadFile(host.bmxpath+"/cfg/fold.txt")
+		If Not stream Then Return
+		
+		While Not Eof(stream)
+			line=ReadLine(stream)
+			maxfiles:+1
+			If line.Find(path, 0)=-1 And line.length>4 And maxfiles<50 Then file :+ ("~n"+line)
+		Wend
+		
+		For line=EachIn foldedlist
+			foldlines :+ (line+" ")
+		Next
+		
+		CloseStream stream
+		stream=WriteFile(host.bmxpath+"/cfg/fold.txt")
+		WriteLine(stream, path+"|"+cursorpos+" "+cursorlen+"|"+foldlines+"|"+file)
+		CloseStream stream
+?
+	End Method
+	
 	Method FoldAll()
 ?Win32
 		Local line$, curline$, value$, level%, header%, footer%, length%=0
+		ParseBmxNew()
+		
 		For line=EachIn foldlist
 			value=String(MapValueForKey(foldmap, line))
 			header=Int(value) & SC_FOLDLEVELHEADERFLAG
@@ -5520,14 +5621,16 @@ Type TOpenCode Extends TToolPanel
 							length=Int(curline)-Int(line) ; Exit
 						EndIf
 					Next
-					textarea.SendEditor(SCI_HIDELINES, Int(line)+1, Int(line)+length)
-					textarea.SendEditor(SCI_SETFOLDEXPANDED, Int(line), 0)
-					textarea.SendEditor(SCI_SETFOLDLEVEL, Int(line), level+SC_FOLDLEVELBASE+SC_FOLDLEVELHEADERFLAG)
+					
 					Local inlist%=0
 					For curline=EachIn foldedlist
 						If Int(curline)=Int(line) Then inlist=True ; Exit
 					Next
-					If inlist=False Then ListAddLast(foldedlist, line)
+					If inlist=False
+						textarea.SendEditor(SCI_HIDELINES, Int(line)+1, Int(line)+length)
+						textarea.SendEditor(SCI_SETFOLDEXPANDED, Int(line), 0)
+						ListAddLast(foldedlist, line)
+					EndIf
 				EndIf
 			EndIf
 		Next
@@ -5537,31 +5640,33 @@ Type TOpenCode Extends TToolPanel
 	Method UnfoldAll()
 ?Win32
 		Local line$, curline$, value$, level%, header%, footer%, length%=0
+		ParseBmxNew()
+		
 		For line=EachIn foldlist
 			value=String(MapValueForKey(foldmap, line))
 			header=Int(value) & SC_FOLDLEVELHEADERFLAG
 			footer=Int(value) & SC_FOLDLEVELWHITEFLAG
 			'DebugLog "init line="+line+" level="+level+" header="+header+" footer="+footer
-			If header>0
-				If textarea.SendEditor(SCI_GETFOLDEXPANDED, Int(line))=False
-					For curline=EachIn foldlist
-						value=String(MapValueForKey(foldmap, curline))
-						level=Int(value) & SC_FOLDLEVELNUMBERMASK
-						footer=Int(value) & SC_FOLDLEVELWHITEFLAG
-						If Int(curline)=Int(line) Then length=level+SC_FOLDLEVELBASE
-						If footer>0 And length>0 And length-1=level+SC_FOLDLEVELBASE
-							'DebugLog "foot level="+level+" curline="+Int(curline)+" line="+line
-							length=Int(curline)-Int(line) ; Exit
-						EndIf
-					Next
+			If textarea.SendEditor(SCI_GETFOLDEXPANDED, Int(line))=False
+				For curline=EachIn foldlist
+					value=String(MapValueForKey(foldmap, curline))
+					level=Int(value) & SC_FOLDLEVELNUMBERMASK
+					footer=Int(value) & SC_FOLDLEVELWHITEFLAG
+					If Int(curline)=Int(line) Then length=level+SC_FOLDLEVELBASE
+					If footer>0 And length>0 And length-1=level+SC_FOLDLEVELBASE
+						'DebugLog "foot level="+level+" curline="+Int(curline)+" line="+line
+						length=Int(curline)-Int(line) ; Exit
+					EndIf
+				Next
+				
+				Local inlist%=0
+				For curline=EachIn foldedlist
+					If Int(curline)=Int(line)
 					textarea.SendEditor(SCI_SHOWLINES, Int(line)+1, Int(line)+length)
 					textarea.SendEditor(SCI_SETFOLDEXPANDED, Int(line), 1)
-					textarea.SendEditor(SCI_SETFOLDLEVEL, Int(line), level+SC_FOLDLEVELBASE+SC_FOLDLEVELHEADERFLAG)
-					Local inlist%=0
-					For curline=EachIn foldedlist
-						If Int(curline)=Int(line) Then ListRemove(foldedlist, curline) ; Exit
-					Next
-				EndIf
+					ListRemove(foldedlist, curline) ; Exit
+					EndIf
+				Next
 			EndIf
 		Next
 ?
@@ -5569,50 +5674,20 @@ Type TOpenCode Extends TToolPanel
 	
 	Method UpdateFold()
 ?Win32
-		If codeflag=0
-			codeflag=1
-			numlines=textarea.SendEditor(SCI_GETLINECOUNT)
-			Local line$, value$, level%, header%, footer%, curline$, length%
-			For line=EachIn foldlist
-				value=String(MapValueForKey(foldmap, line))
-				level=Int(value) & SC_FOLDLEVELNUMBERMASK
-				header=Int(value) & SC_FOLDLEVELHEADERFLAG
-				'DebugLog "init line="+line+" level="+level+" header="+header+" footer="+footer
-				If header>0
-					textarea.SendEditor(SCI_SETFOLDLEVEL, Int(line), level+SC_FOLDLEVELBASE+SC_FOLDLEVELHEADERFLAG)
-				EndIf
-			Next
-			
-			For line=EachIn foldedlist
-				If textarea.SendEditor(SCI_GETFOLDEXPANDED, Int(line))=True
-					length=0
-					For curline=EachIn foldlist
-						Local val$=String(MapValueForKey(foldmap, curline))
-						level=Int(val) & SC_FOLDLEVELNUMBERMASK
-						footer=Int(val) & SC_FOLDLEVELWHITEFLAG
-						If Int(curline)=Int(line) Then length=level+SC_FOLDLEVELBASE
-						If footer>0 And length>0 And length-1=level+SC_FOLDLEVELBASE
-							'DebugLog "footer level="+level+" curline="+Int(curline)+" line="+line
-							length=Int(curline)-Int(line) ; Exit
-						EndIf
-					Next
-					textarea.SendEditor(SCI_HIDELINES, Int(line)+1, Int(line)+length)
-					textarea.SendEditor(SCI_SETFOLDEXPANDED, Int(line), 0)
-					textarea.SendEditor(SCI_SETFOLDLEVEL, Int(line), level+SC_FOLDLEVELBASE+SC_FOLDLEVELHEADERFLAG)
-				EndIf
-			Next
-		EndIf
-		
 		Local n:TScintillaEventData=TScintillaEventData(EventExtra()) ' folding
 		If host.options.codefold=False Then n.Code=0
 		Local line%, value$, level%, header%, footer%, curline$, length%, levelclick%
+		
 		Select n.Code
 			Case SCN_MARGINCLICK
 				line=textarea.SendEditor(SCI_LINEFROMPOSITION, n.position, 0)
 				levelclick=textarea.SendEditor(SCI_GETFOLDLEVEL, line)
 				value=String(MapValueForKey(foldmap, String(line)))
-				
 				length=0
+				If textarea.SendEditor(SCI_GETFOLDEXPANDED, line)=True
+					ParseBmxNew()
+				EndIf
+				
 				For curline=EachIn foldlist
 					value=String(MapValueForKey(foldmap, curline))
 					level=Int(value) & SC_FOLDLEVELNUMBERMASK
@@ -5631,6 +5706,7 @@ Type TOpenCode Extends TToolPanel
 						textarea.SendEditor(SCI_MARKERADD, line, SC_MarkNum_FolderOpen)
 						textarea.SendEditor(SCI_SHOWLINES, line+1, line+length)
 						Local endline$, curlength%=0
+						
 						For curline=EachIn foldedlist
 							If Int(curline)>line And Int(curline)<line+length
 								For endline=EachIn foldlist
@@ -5646,6 +5722,7 @@ Type TOpenCode Extends TToolPanel
 								textarea.SendEditor(SCI_HIDELINES, Int(curline)+1, Int(curline)+curlength)
 							EndIf
 						Next
+						
 						For curline=EachIn foldedlist
 							If Int(curline)=line Then ListRemove(foldedlist, curline) ; Exit
 						Next
@@ -5654,6 +5731,7 @@ Type TOpenCode Extends TToolPanel
 						textarea.SendEditor(SCI_MARKERADD, line, SC_MarkNum_Folder)
 						textarea.SendEditor(SCI_HIDELINES, line+1, line+length)
 						Local inlist%=0
+						
 						For curline=EachIn foldedlist
 							If Int(curline)=line Then inlist=True ; Exit
 						Next
@@ -5665,9 +5743,10 @@ Type TOpenCode Extends TToolPanel
 ?
 	End Method
 	
-	Method UpdateCursorHistory()
+	Method CursorHistory()
 ?Win32
 		Local id%=0, curline%=TextAreaCursor(textarea, TEXTAREA_LINES)
+		
 		If gotoflag=False And Abs(lastline-curline)>textarea.SendEditor(SCI_LINESONSCREEN)
 			If cursorindex<CountList(scplist)
 				For Local startpos:String=EachIn scplist
@@ -5954,7 +6033,7 @@ Type TOpenCode Extends TToolPanel
 					isc=(ex.ToLower()="c" Or ex.ToLower()="h")
 					iscpp=(ex.ToLower()="cpp" Or ex.ToLower()="cxx" Or ex.ToLower()="hpp")
 ?
-				EndIf				
+				EndIf
 				SaveSource(file$)
 				RefreshStyle()
 				GetNode().Refresh
@@ -5981,22 +6060,34 @@ Type TOpenCode Extends TToolPanel
 				SetLocked False			
 			Case TOOLHELP
 				Help()
-			Case TOOLUNDO
+			Case TOOLUNDO			
 				Undo()
+				If host.options.codefold
+					ParseBmxNew(textarea.LineAt(oldpos), textarea.LineAt(cursorpos)+1, True)
+				EndIf
 			Case TOOLREDO
 				Redo()
+				If host.options.codefold
+					ParseBmxNew(textarea.LineAt(oldpos), textarea.LineAt(cursorpos)+1, True)
+				EndIf
 			Case TOOLREFRESH
 				RefreshStyle()
 			Case TOOLCUT
 				GadgetCut textarea
 				UpdateCursor()
 				UpdateCode()
+				If host.options.codefold
+					ParseBmxNew(textarea.LineAt(oldpos), textarea.LineAt(cursorpos)+1, True)
+				EndIf
 			Case TOOLCOPY
 				GadgetCopy textarea
 			Case TOOLPASTE
 				GadgetPaste textarea
 				UpdateCursor()
 				UpdateCode()
+				If host.options.codefold
+					ParseBmxNew(textarea.LineAt(oldpos), textarea.LineAt(cursorpos)+1, True)
+				EndIf
 			Case TOOLSELECTALL
 				SelectTextAreaText textarea
 				UpdateCursor()
@@ -6007,62 +6098,6 @@ Type TOpenCode Extends TToolPanel
 			Case TOOLPRINT
 				GadgetPrint textarea
 		End Select
-	End Method
-	
-	Method ReadFold()
-?Win32
-		Local found%, fold$, p0%, p1%, line$, level$
-		Local stream:TStream=OpenFile(host.bmxpath+"/cfg/fold.txt")
-		If Not stream Then Return
-		
-		While Not Eof(stream)
-			fold=ReadLine(stream)
-			If fold.Find(path, 0)>-1 Then found=True ; Exit
-		Wend
-		
-		If found=True
-			p0=fold.Find("|", 0)
-			p1=fold.Find(" ", p0+1)
-			line=GetTokenName(fold, p0+1) ' curpos
-			level=GetTokenName(fold, p1+1) ' curlen
-			SelectTextAreaText(textarea, Int(line), Int(level))
-			UpdateCursor
-			
-			ClearList foldedlist
-			p0=fold.Find("|", p1)
-			While p1<fold.length
-				p1=fold.Find(" ", p1+1)
-				line=fold[p0+1..p1]
-				p0=p1
-				If p1=-1 Then Exit
-				If line>0 Then ListAddLast(foldedlist, line)
-			Wend
-		EndIf
-		CloseStream stream
-?
-	End Method
-	
-	Method WriteFold()
-?Win32
-		Local file$, foldlines$, line$, maxfiles%=0
-		Local stream:TStream=OpenFile(host.bmxpath+"/cfg/fold.txt")
-		If Not stream Then stream=WriteFile(host.bmxpath+"/cfg/fold.txt")
-		If Not stream Then Return
-		
-		While Not Eof(stream)
-			line=ReadLine(stream)
-			maxfiles:+1
-			If line.Find(path, 0)=-1 And line.length>4 And maxfiles<50 Then file :+ ("~n"+line)
-		Wend
-		
-		For line=EachIn foldedlist
-			foldlines :+ (line+" ")
-		Next
-		
-		SeekStream stream, 0
-		If line.Find(path, 0)=-1 Then WriteLine(stream, path+"|"+cursorpos+" "+cursorlen+"|"+foldlines+"|"+file)
-		CloseStream stream
-?
 	End Method
 	
 	Function CreateEditMenu:TGadget()
@@ -6613,7 +6648,10 @@ Type TCodePlay
 			EndIf
 			CloseProgress
 			If code
-				code.ReadFold()
+				If options.codefold
+					code.ParseBmxNew()
+					code.ReadFold()
+				EndIf
 				ActivateGadget code.textarea
 				code.GetNode().Refresh
 			EndIf
