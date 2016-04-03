@@ -40,12 +40,11 @@ Changes log (markcwm/munch - Feb 2016):
 - camelcase for autocomplete
 - custom code folding for type/method/function/extern
 - fold all and unfold all menu items
+- f2 source help for function and type keywords
 
 To do:
-- f2 open source help
 - include/import autocomplete
 - code view in cpp files
-- linux version
 
 To fix:
 - cursor selecting multiple lines on double-click sometimes?

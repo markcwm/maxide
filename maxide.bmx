@@ -202,6 +202,7 @@ Const MENUTHREADEDENABLED=61
 
 Const MENUFOLD=62
 Const MENUUNFOLD=63
+Const MENUSOURCEHELP=64
 
 Const MENURECENT=256
 
@@ -260,8 +261,8 @@ Function Quote$(a$)		'add quotes to arg if spaces found
 	Return Chr(34)+a+Chr(34)		
 End Function
 
-Function EncodeColor:Int(ColorR:Byte , ColorG:Byte , ColorB:Byte)	
-	Return ColorR + (ColorG Shl 8) + (ColorB Shl 16)
+Function EncodeColor:Int(r:Byte, g:Byte, b:Byte)	
+	Return r|(g Shl 8)|(b Shl 16)
 End Function
 
 Type TToken
@@ -1143,11 +1144,11 @@ Type TOptionsRequester Extends TPanelRequester
 	Field	editpanel:TGadget,editbutton:TGadget
 	Field	buttons:TGadget[17]
 	Field	styles:TTextStyle[]
-?Not Win32
-	Field	textarea:TGadget
-?Win32
+'?Not Win32
+'	Field	textarea:TGadget
+'?Win32
 	Field	textarea:TScintillaGadget
-?
+'?
 	Field	outputstyle:TGadgetStyle
 	Field	navstyle:TGadgetStyle
 	Field	dirty
@@ -1197,12 +1198,12 @@ Type TOptionsRequester Extends TPanelRequester
 		navstyle.set(0,-1,GUIFONT_SYSTEM)
 		lastfolder=False
 		unixeol=False
-?Win32
+'?Win32
 		marginstyle.set(FGSYSCOLOR,BGSYSCOLOR,GUIFONT_MONOSPACED)
 		codefold=True
 		indentguide=False
 		autocomplete=True
-?
+'?
 		RefreshGadgets
 	End Method
 
@@ -1234,12 +1235,12 @@ Type TOptionsRequester Extends TPanelRequester
 		stream.WriteLine "sort_code="+sortcode
 		stream.WriteLine "lastfolder="+lastfolder
 		stream.WriteLine "unixeol="+unixeol
-?Win32
+'?Win32
 		stream.WriteLine "margin_style="+marginstyle.ToString()
 		stream.WriteLine "codefold="+codefold
 		stream.WriteLine "indentguide="+indentguide
 		stream.WriteLine "autocomplete="+autocomplete
-?
+'?
 	End Method
 
 	Method Read(stream:TStream)
@@ -1277,12 +1278,12 @@ Type TOptionsRequester Extends TPanelRequester
 				Case "sort_code" sortcode=t
 				Case "lastfolder" lastfolder=t
 				Case "unixeol" unixeol=t
-?Win32
+'?Win32
 				Case "margin_style" marginstyle.FromString(b)
 				Case "codefold" codefold=t
 				Case "indentguide" indentguide=t
 				Case "autocomplete" autocomplete=t
-?
+'?
 				Case "language"
 					Try
 						Local tmpLanguage:TMaxGUILanguage = LoadLanguage(host.FullPath(b))
@@ -1326,11 +1327,11 @@ Type TOptionsRequester Extends TPanelRequester
 		SetButtonState buttons[10],sortcode
 		SetButtonState buttons[11],lastfolder
 		SetButtonState buttons[12],unixeol
-?Win32
+'?Win32
 		SetButtonState buttons[13],codefold
 		SetButtonState buttons[14],indentguide
 		SetButtonState buttons[15],autocomplete
-?
+'?
 		SelectGadgetItem tabbutton,Min(Max(tabsize/2-1,0),7)
 		SetPanelColor editpanel,editcolor.red,editcolor.green,editcolor.blue
 		SetGadgetText editbutton,editfontname+" : "+editfontsize + "pt"
@@ -1352,46 +1353,46 @@ Type TOptionsRequester Extends TPanelRequester
 		UnlockTextArea textarea
 		outputstyle.Refresh
 		navstyle.Refresh
-?Win32
+'?Win32
 		marginstyle.RefreshColor
-?
+'?
 		dirty=True
 		ScintillaProps()
 	End Method
 
 	Method ScintillaProps()
-?Win32
+'?Win32
 		textarea.SetLineNumbering(0, False)
-		textarea.SetMarginType(1, SC_MARGIN_SYMBOL, 20)
-		textarea.SetMarginSensitive(1, True)
+		textarea.SendEditor(SCI_SETMARGINTYPEN, 1, SC_MARGIN_SYMBOL)
+		textarea.SendEditor(SCI_SETMARGINWIDTHN, 1, 20)
+		textarea.SendEditor(SCI_SETMARGINSENSITIVEN, 1, True)
 		textarea.SendEditor(SCI_USEPOPUP, 0) ' deactivate scintilla popup
-		
-		textarea.SetLexer(SCLEX_BLITZMAX) ' syntax format
-		textarea.SetLexerKeywords(0, helpmap) ' keywords list
+		textarea.SendEditor(SCI_SETLEXER, SCLEX_BLITZMAX)
+		textarea.SendEditorString(SCI_SETKEYWORDS, 0, helpmap)
 		
 		Local clr%=0
 		' 0 white space, 1 single rem, 2 number, 3 keyword, 4 string, 5 preprocessor(?), 6 operator, 7 character,
 		' 8 date(?), 9-12 ? 13 constant(?), 14 asm (?), 15-16 ?, 17 hex, 18 binary, 19 multi rem, 20 ?
 		For Local style:Int=0 To 20
 			clr=EncodeColor(styles[NORMAL].Color.red, styles[NORMAL].Color.green, styles[NORMAL].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, style, clr) ' fg text
+			textarea.SendEditor(SCI_STYLESETFORE, style, clr) ' fg text
 			clr=EncodeColor(editcolor.red, editcolor.green, editcolor.blue)
-			textarea.SetLexerStyle(SCI_STYLESETBACK, style, clr ) ' bg text
+			textarea.SendEditor(SCI_STYLESETBACK, style, clr ) ' bg text
 		Next
-		textarea.SetLexerStyle(SCI_STYLESETBACK, STYLE_DEFAULT, clr) ' bg color
+		textarea.SendEditor(SCI_STYLESETBACK, STYLE_DEFAULT, clr) ' bg color
 		clr=EncodeColor(styles[NORMAL].Color.red, styles[NORMAL].Color.green, styles[NORMAL].Color.blue)
 		textarea.SendEditor(SCI_SETCARETFORE, clr) ' fg caret
 		
 		If syntaxhighlight
 			clr=EncodeColor(styles[KEYWORD].Color.red, styles[KEYWORD].Color.green, styles[KEYWORD].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_B_KEYWORD, clr) ' fg keyword
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_B_KEYWORD, clr) ' fg keyword
 			clr=EncodeColor(styles[COMMENT].Color.red, styles[COMMENT].Color.green, styles[COMMENT].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_B_MULTILINECOMMENT, clr) ' fg ml remark
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_B_COMMENT, clr) ' fg sl remark
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_B_MULTILINECOMMENT, clr) ' fg ml remark
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_B_COMMENT, clr) ' fg sl remark
 			clr=EncodeColor(styles[NUMBER].Color.red, styles[NUMBER].Color.green, styles[NUMBER].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_B_NUMBER, clr) ' fg number
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_B_NUMBER, clr) ' fg number
 			clr=EncodeColor(styles[QUOTED].Color.red, styles[QUOTED].Color.green, styles[QUOTED].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_B_STRING, clr) ' fg string
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_B_STRING, clr) ' fg string
 		EndIf
 		If bracketmatching And syntaxhighlight
 			clr=EncodeColor(styles[MATCHING].Color.red, styles[MATCHING].Color.green, styles[MATCHING].Color.blue)
@@ -1406,7 +1407,7 @@ Type TOptionsRequester Extends TPanelRequester
 			textarea.SendEditor(SCI_CLEARCMDKEY, key+(SCMOD_CTRL Shl 16), 0)
 			textarea.SendEditor(SCI_CLEARCMDKEY, key+((SCMOD_CTRL+SCMOD_SHIFT) Shl 16), 0)
 		Next
-?
+'?
 	End Method
 
 	Method Poll()
@@ -1416,9 +1417,9 @@ Type TOptionsRequester Extends TPanelRequester
 		Next
 		refresh:|outputstyle.Poll()
 		refresh:|navstyle.Poll()
-?Win32
+'?Win32
 		refresh:|marginstyle.PollColor()
-?
+'?
 		Select EventID()
 			Case EVENT_GADGETACTION, EVENT_WINDOWCLOSE
 				Select EventSource()
@@ -1435,11 +1436,11 @@ Type TOptionsRequester Extends TPanelRequester
 					Case buttons[10];sortcode=ButtonState(buttons[10]);dirty=3
 					Case buttons[11];lastfolder=ButtonState(buttons[11])
 					Case buttons[12];unixeol=ButtonState(buttons[12])
-?Win32
+'?Win32
 					Case buttons[13];codefold=ButtonState(buttons[13])
 					Case buttons[14];indentguide=ButtonState(buttons[14])
 					Case buttons[15];autocomplete=ButtonState(buttons[15])
-?
+'?
 					Case tabber;SetPanelIndex SelectedGadgetItem(tabber)
 					Case ok
 						Hide()
@@ -1494,13 +1495,6 @@ Type TOptionsRequester Extends TPanelRequester
 							editcolor.Request()
 							refresh=True
 						EndIf
-'?Win32
-'					Case marginpanel
-'						If EventID()=EVENT_MOUSEDOWN
-'							margincolor.Request()
-'							refresh=True
-'						EndIf
-'?
 					Default
 						processed = 0
 				EndSelect
@@ -1541,11 +1535,11 @@ Type TOptionsRequester Extends TPanelRequester
 		buttons[10]=CreateButton("{{options_options_btn_sortcodeviewnodes}}",6,268,ClientWidth(w)-12,26,w,BUTTON_CHECKBOX)
 		buttons[11]=CreateButton("{{options_options_btn_lastfolder}}",ClientWidth(w)/2+12,6,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
 		buttons[12]=CreateButton("{{options_options_btn_unixeol}}",ClientWidth(w)/2+12,34,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
-?Win32
+'?Win32
 		buttons[13]=CreateButton("{{options_options_btn_codefold}}",ClientWidth(w)/2+12,60,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
 		buttons[14]=CreateButton("{{options_options_btn_indentguide}}",ClientWidth(w)/2+12,86,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
 		buttons[15]=CreateButton("{{options_options_btn_autocomplete}}",ClientWidth(w)/2+12,112,ClientWidth(w)/2,26,w,BUTTON_CHECKBOX)
-?
+'?
 		w=editorpanel
 		CreateLabel("{{options_editor_label_background}}:",6,6+4,90,24,w)
 		editpanel=CreatePanel(100,6,24,24,w,PANEL_BORDER|PANEL_ACTIVE)
@@ -1564,19 +1558,19 @@ Type TOptionsRequester Extends TPanelRequester
 		styles[NUMBER]=TTextStyle.Create("{{options_editor_label_numbers}}:",6,186,w)
 		styles[MATCHING]=TTextStyle.Create("{{options_editor_label_matchings}}:",6,216,w)
 		
-?Not Win32
-		textarea=CreateTextArea(6,250,ClientWidth(w)-12,ClientHeight(w)-256,w) ' TEXTAREA_READONLY
-?Win32
-		textarea=CreateScintillaArea(6,250,ClientWidth(w)-12,ClientHeight(w)-256,w)
-?
+'?Not Win32
+'		textarea=CreateTextArea(6,250,ClientWidth(w)-12,ClientHeight(w)-256,w) ' TEXTAREA_READONLY
+'?Win32
+		textarea=CreateScintillaTextArea(6,250,ClientWidth(w)-12,ClientHeight(w)-256,w)
+'?
 		SetGadgetText textarea,"'Sample Code~n~nresult = ((2.0 * 4) + 1)~nPrint( ~qResult: ~q + result )"
 		
 		w=toolpanel
 		outputstyle=TGadgetStyle.Create("{{options_tools_label_output}}: ",6,6,w)
 		navstyle=TGadgetStyle.Create("{{options_tools_label_navbar}}: ",6,66,w)
-?Win32
+'?Win32
 		marginstyle=TGadgetStyle.CreateColor("{{options_tools_label_margin}}: ",6,126,w)
-?
+'?
 		helpmap=""
 		For Local ts$=EachIn MapKeys(host.quickhelp.map)
 			helpmap :+ (ts+" ")
@@ -3714,11 +3708,11 @@ End Type
 Type TOutputPanel Extends TToolPanel	'used build and run
 
 	Field	host:TCodePlay
-?Not Win32
-	Field	output:TGadget
-?Win32
+'?Not Win32
+'	Field	output:TGadget
+'?Win32
 	Field	output:TScintillaGadget
-?
+'?
 
 	Field	process:TProcess
 	Field	pipe:TStream
@@ -3994,11 +3988,11 @@ Type TOutputPanel Extends TToolPanel	'used build and run
 			Return
 		EndIf
 		codeplay.addpanel(Self)		
-?Not Win32
-		output=CreateTextArea(0,0,ClientWidth(panel),ClientHeight(panel),panel,TEXTAREA_WORDWRAP)
-?Win32
-		output=CreateScintillaArea(0,0,ClientWidth(panel),ClientHeight(panel),panel,TEXTAREA_WORDWRAP)
-?
+'?Not Win32
+'		output=CreateTextArea(0,0,ClientWidth(panel),ClientHeight(panel),panel,TEXTAREA_WORDWRAP)
+'?Win32
+		output=CreateScintillaTextArea(0,0,ClientWidth(panel),ClientHeight(panel),panel,TEXTAREA_WORDWRAP)
+'?
 		DelocalizeGadget output
 		SetGadgetLayout output,EDGE_ALIGNED,EDGE_ALIGNED,EDGE_ALIGNED,EDGE_ALIGNED
 		SetGadgetFilter output,outputfilter,Self
@@ -4008,13 +4002,13 @@ Type TOutputPanel Extends TToolPanel	'used build and run
 	End Method
 
 	Method ScintillaProps()
-?Win32
+'?Win32
 		' disable any ctrl+shift+key multi characters
 		For Local key%=0 To 255
 			output.SendEditor(SCI_CLEARCMDKEY, key+(SCMOD_CTRL Shl 16), 0)
 			output.SendEditor(SCI_CLEARCMDKEY, key+((SCMOD_CTRL+SCMOD_SHIFT) Shl 16), 0)
 		Next
-?
+'?
 	End Method
 
 	Function CreateOutputMenu:TGadget()
@@ -4109,11 +4103,11 @@ Type TOpenCode Extends TToolPanel
 	Global msgHighlightingStatus$ = "Highlighting"
 	
 	Field	host:TCodePlay
-?Not Win32
-	Field	textarea:TGadget
-?Win32
+'?Not Win32
+'	Field	textarea:TGadget
+'?Win32
 	Field textarea:TScintillaGadget
-?
+'?
 	Field	dirty=True
 	Field	filesrc$,cleansrc$,cleansrcl$
 	Field	Current:TDiff
@@ -4129,7 +4123,7 @@ Type TOpenCode Extends TToolPanel
 	Field	editmenu:TGadget
 	Field	codenode:TCodeNode
 	Field	dirtynode,uc
-	Field helpmap$,methodlist:TList=New TList
+	Field helpmap$,methodlist:TList=New TList,importlist:TList=New TList
 	Field redoflag%=0,indentlen%=0,lastline%,foldflag%=0,foldnl%
 	Field foldmap:TMap=New TMap,numlines%,foldlist:TList=New TList,foldedlist:TList=New TList
 	Field gotoflag%=0,cursorindex%=1,scplist:TList=New TList,ecplist:TList=New TList
@@ -4489,7 +4483,6 @@ Type TOpenCode Extends TToolPanel
 	End Method
 
 	Method UpdateCode(makeundo=True)
-		Local	cpos
 		Local src$ = TextAreaText(textarea)
 		Local d:TDiff = CalcDiff(src)
 		If d
@@ -4508,13 +4501,13 @@ Type TOpenCode Extends TToolPanel
 		If undolist.IsEmpty() Return
 		d=TDiff(undolist.RemoveLast())
 		redolist.AddLast d
-?Not Win32
-		SetTextAreaText textarea,d.del,d.pos1,d.add.length
-		SelectTextAreaText(textarea,d.pos,d.count)
-?Win32
+'?Not Win32
+'		SetTextAreaText textarea,d.del,d.pos1,d.add.length
+'		SelectTextAreaText(textarea,d.pos,d.count)
+'?Win32
 		textarea.SendEditor(SCI_UNDO)
 		redoflag=True
-?
+'?
 		SetCode TextAreaText(textarea),d
 		UpdateCursor
 	End Method
@@ -4524,13 +4517,13 @@ Type TOpenCode Extends TToolPanel
 		If redolist.IsEmpty() Return
 		d=TDiff(redolist.RemoveLast())
 		undolist.AddLast d
-?Not Win32
-		SetTextAreaText textarea,d.add,d.pos,d.del.length
-		SelectTextAreaText(textarea,d.pos0,d.count0)
-?Win32
+'?Not Win32
+'		SetTextAreaText textarea,d.add,d.pos,d.del.length
+'		SelectTextAreaText(textarea,d.pos0,d.count0)
+'?Win32
 		textarea.SendEditor(SCI_REDO)
 		redoflag=True
-?
+'?
 		UpdateCursor
 		SetCode TextAreaText(textarea),d
 	End Method
@@ -4538,10 +4531,13 @@ Type TOpenCode Extends TToolPanel
 	Method RefreshStyle()
 		Local	rgb:TColor
 		Local	src$
-		'Local charwidth
-		
-		'charwidth=host.options.editfont.CharWidth(32)
-		SetTextAreaTabs textarea,host.options.tabsize ' fix - no CharWidth method in TGUIFont
+		Local charwidth
+?Not Win32
+		charwidth=host.options.editfont.CharWidth(32)
+?Win32
+		charwidth=1 ' fix - SetTabs not pixel width in win
+?
+		SetTextAreaTabs textarea,host.options.tabsize*charwidth
 		SetMargins textarea,4		
 		SetTextAreaFont textarea,host.options.editfont
 		rgb=host.options.editcolor
@@ -4563,17 +4559,18 @@ Type TOpenCode Extends TToolPanel
 	End Method
 
 	Method ScintillaProps()
-?Win32
+'?Win32
 		textarea.SetLineNumbering(0, True)
-		textarea.SetMarginType(1, SC_MARGIN_SYMBOL, 20)
-		textarea.SetMarginSensitive(1, True)
+		textarea.SendEditor(SCI_SETMARGINTYPEN, 1, SC_MARGIN_SYMBOL)
+		textarea.SendEditor(SCI_SETMARGINWIDTHN, 1, 20)
+		textarea.SendEditor(SCI_SETMARGINSENSITIVEN, 1, True)
 		textarea.SendEditor(SCI_USEPOPUP, 0) ' deactivate scintilla popup
 		
-		textarea.SetLexer(SCLEX_BLITZMAX)
+		textarea.SendEditor(SCI_SETLEXER, SCLEX_BLITZMAX)
 		If iscpp Or isc
-			textarea.SetLexer(SCLEX_CPP)
+			textarea.SendEditor(SCI_SETLEXER, SCLEX_CPP)
 		EndIf
-		textarea.SetLexerKeywords(0, helpmap) ' keywords list
+		textarea.SendEditorString(SCI_SETKEYWORDS, 0, helpmap)
 		
 		Local opt:TOptionsRequester=host.options
 		Local clr%=0
@@ -4581,38 +4578,38 @@ Type TOpenCode Extends TToolPanel
 		' 8 date(?), 9-12 ? 13 constant(?), 14 asm (?), 15-16 ?, 17 hex, 18 binary, 19 multi rem, 20 ?
 		For Local style:Int=0 To 20
 			clr=EncodeColor(opt.styles[NORMAL].Color.red, opt.styles[NORMAL].Color.green, opt.styles[NORMAL].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, style, clr) ' fg text
+			textarea.SendEditor(SCI_STYLESETFORE, style, clr) ' fg text
 			clr=EncodeColor(opt.editcolor.red, opt.editcolor.green, opt.editcolor.blue)
-			textarea.SetLexerStyle(SCI_STYLESETBACK, style, clr) ' bg text
+			textarea.SendEditor(SCI_STYLESETBACK, style, clr) ' bg text
 		Next
-		textarea.SetLexerStyle(SCI_STYLESETBACK, STYLE_DEFAULT, clr) ' bg color
+		textarea.SendEditor(SCI_STYLESETBACK, STYLE_DEFAULT, clr) ' bg color
 		clr=EncodeColor(opt.styles[NORMAL].Color.red, opt.styles[NORMAL].Color.green, opt.styles[NORMAL].Color.blue)
 		textarea.SendEditor(SCI_SETCARETFORE, clr) ' fg caret
 		
 		If host.options.syntaxhighlight And (iscpp Or isc)
 			clr=EncodeColor(opt.styles[KEYWORD].Color.red, opt.styles[KEYWORD].Color.green, opt.styles[KEYWORD].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_C_WORD, clr)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_C_UUID, clr)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_C_PREPROCESSOR, clr)
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_C_WORD, clr)
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_C_UUID, clr)
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_C_PREPROCESSOR, clr)
 			clr=EncodeColor(opt.styles[COMMENT].Color.red, opt.styles[COMMENT].Color.green, opt.styles[COMMENT].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_C_COMMENT, clr)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_C_COMMENTLINE, clr)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_C_COMMENTDOC, clr)
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_C_COMMENT, clr)
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_C_COMMENTLINE, clr)
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_C_COMMENTDOC, clr)
 			clr=EncodeColor(opt.styles[NUMBER].Color.red, opt.styles[NUMBER].Color.green, opt.styles[NUMBER].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_C_NUMBER, clr)
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_C_NUMBER, clr)
 			clr=EncodeColor(opt.styles[QUOTED].Color.red, opt.styles[QUOTED].Color.green, opt.styles[QUOTED].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_C_STRING, clr)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_C_CHARACTER, clr)
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_C_STRING, clr)
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_C_CHARACTER, clr)
 		ElseIf host.options.syntaxhighlight And isbmx
 			clr=EncodeColor(opt.styles[KEYWORD].Color.red, opt.styles[KEYWORD].Color.green, opt.styles[KEYWORD].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_B_KEYWORD, clr) ' fg keyword
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_B_KEYWORD, clr) ' fg keyword
 			clr=EncodeColor(opt.styles[COMMENT].Color.red, opt.styles[COMMENT].Color.green, opt.styles[COMMENT].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_B_MULTILINECOMMENT, clr) ' fg ml remark
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_B_COMMENT, clr) ' fg sl remark
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_B_MULTILINECOMMENT, clr) ' fg ml remark
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_B_COMMENT, clr) ' fg sl remark
 			clr=EncodeColor(opt.styles[NUMBER].Color.red, opt.styles[NUMBER].Color.green, opt.styles[NUMBER].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_B_NUMBER, clr) ' fg number
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_B_NUMBER, clr) ' fg number
 			clr=EncodeColor(opt.styles[QUOTED].Color.red, opt.styles[QUOTED].Color.green, opt.styles[QUOTED].Color.blue)
-			textarea.SetLexerStyle(SCI_STYLESETFORE, SCE_B_STRING, clr) ' fg string
+			textarea.SendEditor(SCI_STYLESETFORE, SCE_B_STRING, clr) ' fg string
 		EndIf
 		If host.options.bracketmatching And host.options.syntaxhighlight
 			clr=EncodeColor(opt.styles[MATCHING].Color.red, opt.styles[MATCHING].Color.green, opt.styles[MATCHING].Color.blue)
@@ -4626,8 +4623,6 @@ Type TOpenCode Extends TToolPanel
 			textarea.SendEditor(SCI_CLEARCMDKEY, key+(SCMOD_CTRL Shl 16), 0)
 			textarea.SendEditor(SCI_CLEARCMDKEY, key+((SCMOD_CTRL+SCMOD_SHIFT) Shl 16), 0)
 		Next
-		'textarea.SendEditor(SCI_CLEARCMDKEY, KEY_TAB, 0)
-		'textarea.SendEditor(SCI_CLEARCMDKEY, KEY_TAB+((SCMOD_CTRL+SCMOD_SHIFT) Shl 16), 0)
 		
 		' symbol markers
 		textarea.SendEditor(SCI_MARKERDEFINE, SC_MARKNUM_FOLDER, SC_MARK_ARROW) ' closed
@@ -4644,46 +4639,46 @@ Type TOpenCode Extends TToolPanel
 		If opt.marginstyle.bg.green<128 Then mbg=opt.marginstyle.bg.green+20 Else mbg=opt.marginstyle.bg.green-20
 		If opt.marginstyle.bg.blue<128 Then mbb=opt.marginstyle.bg.blue+20 Else mbb=opt.marginstyle.bg.blue-20
 		clr=EncodeColor(mbr, mbg, mbb)
-		textarea.SetLexerStyle(SCI_SETFOLDMARGINHICOLOUR, 1, clr)
+		textarea.SendEditor(SCI_SETFOLDMARGINHICOLOUR, 1, clr)
 		clr=EncodeColor(opt.marginstyle.bg.red, opt.marginstyle.bg.green, opt.marginstyle.bg.blue) ' margin bg color
-		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDER, clr)
-		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDEROPEN, clr)
-		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDEREND,  clr)
-		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDERMIDTAIL, clr)
-		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDEROPENMID, clr)
-		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDERSUB, clr)
-		textarea.SetLexerStyle(SCI_MARKERSETBACK, SC_MARKNUM_FOLDERTAIL, clr)
-		textarea.SetLexerStyle(SCI_STYLESETBACK, STYLE_LINENUMBER, clr)
-		textarea.SetLexerStyle(SCI_STYLESETBACK, STYLE_INDENTGUIDE, clr)
-		textarea.SetLexerStyle(SCI_SETFOLDMARGINCOLOUR, 1, clr)
+		textarea.SendEditor(SCI_MARKERSETBACK, SC_MARKNUM_FOLDER, clr)
+		textarea.SendEditor(SCI_MARKERSETBACK, SC_MARKNUM_FOLDEROPEN, clr)
+		textarea.SendEditor(SCI_MARKERSETBACK, SC_MARKNUM_FOLDEREND,  clr)
+		textarea.SendEditor(SCI_MARKERSETBACK, SC_MARKNUM_FOLDERMIDTAIL, clr)
+		textarea.SendEditor(SCI_MARKERSETBACK, SC_MARKNUM_FOLDEROPENMID, clr)
+		textarea.SendEditor(SCI_MARKERSETBACK, SC_MARKNUM_FOLDERSUB, clr)
+		textarea.SendEditor(SCI_MARKERSETBACK, SC_MARKNUM_FOLDERTAIL, clr)
+		textarea.SendEditor(SCI_STYLESETBACK, STYLE_LINENUMBER, clr)
+		textarea.SendEditor(SCI_STYLESETBACK, STYLE_INDENTGUIDE, clr)
+		textarea.SendEditor(SCI_SETFOLDMARGINCOLOUR, 1, clr)
 		clr=EncodeColor(opt.marginstyle.fg.red, opt.marginstyle.fg.green, opt.marginstyle.fg.blue) ' margin fg color
-		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDER, clr)
-		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDEROPEN, clr)
-		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDEREND, clr)
-		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDERMIDTAIL, clr)
-		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDEROPENMID, clr)
-		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDERSUB, clr)
-		textarea.SetLexerStyle(SCI_MARKERSETFORE, SC_MARKNUM_FOLDERTAIL, clr)
+		textarea.SendEditor(SCI_MARKERSETFORE, SC_MARKNUM_FOLDER, clr)
+		textarea.SendEditor(SCI_MARKERSETFORE, SC_MARKNUM_FOLDEROPEN, clr)
+		textarea.SendEditor(SCI_MARKERSETFORE, SC_MARKNUM_FOLDEREND, clr)
+		textarea.SendEditor(SCI_MARKERSETFORE, SC_MARKNUM_FOLDERMIDTAIL, clr)
+		textarea.SendEditor(SCI_MARKERSETFORE, SC_MARKNUM_FOLDEROPENMID, clr)
+		textarea.SendEditor(SCI_MARKERSETFORE, SC_MARKNUM_FOLDERSUB, clr)
+		textarea.SendEditor(SCI_MARKERSETFORE, SC_MARKNUM_FOLDERTAIL, clr)
 		textarea.SendEditor(SCI_SETFOLDFLAGS, 16, 0) ' draw fold line below, uses STYLE_DEFAULT
-		textarea.SetLexerStyle(SCI_STYLESETFORE, STYLE_LINENUMBER, clr)
-		textarea.SetLexerStyle(SCI_STYLESETFORE, STYLE_INDENTGUIDE, clr)
-		textarea.SetLexerStyle(SCI_STYLESETFORE, STYLE_DEFAULT, clr) ' fold line
+		textarea.SendEditor(SCI_STYLESETFORE, STYLE_LINENUMBER, clr)
+		textarea.SendEditor(SCI_STYLESETFORE, STYLE_INDENTGUIDE, clr)
+		textarea.SendEditor(SCI_STYLESETFORE, STYLE_DEFAULT, clr) ' fold line
 		
 		' margins
 		If host.options.codefold=True
 			textarea.SendEditor(SCI_SETMARGINMASKN, 1, SC_MASK_FOLDERS) ' margin 1 visible
-			textarea.SetProperty("fold", "0") ' disabled for custom folding
-			textarea.SetProperty("fold.compact", "0") ' don't fold blank lines
+			textarea.SendEditorStringString(SCI_SETPROPERTY, "fold", "0") ' disabled for custom folding
+			textarea.SendEditorStringString(SCI_SETPROPERTY, "fold.compact", "0") ' don't fold blank lines
 		Else
 			textarea.SendEditor(SCI_SETMARGINMASKN, 1, ~SC_MASK_FOLDERS)
-			textarea.SetProperty("fold", "0")
+			textarea.SendEditorStringString(SCI_SETPROPERTY, "fold", "0")
 		EndIf
 		If host.options.indentguide=True
 			textarea.SendEditor(SCI_SETINDENTATIONGUIDES, SC_IV_LOOKBOTH, 0) ' indentation guides
 		Else
 			textarea.SendEditor(SCI_SETINDENTATIONGUIDES, SC_IV_NONE) ' no indented lines
 		EndIf
-?
+'?
 	End Method
 
 	Function IsntAlphaNumeric(c)		'lowercase test only
@@ -5106,9 +5101,9 @@ Type TOpenCode Extends TToolPanel
 		Local currentchar:Int = 0, currentcharpos:Int = Max(cursorpos-1,0)
 		
 		If cursorlen Then Return
-?Win32
+'?Win32
 		If Not isbmx And Not iscpp And Not isc Then Return
-?
+'?
 
 ?Not Win32
 		If currentbrackets Then
@@ -5125,11 +5120,11 @@ Type TOpenCode Extends TToolPanel
 			If Not alwaysfind Then Return
 		EndIf
 		
-?Not Win32
-		If host.options.bracketmatching And isbmx And Not IsRemmed(currentcharpos,lsrc) Then
-?Win32
+'?Not Win32
+'		If host.options.bracketmatching And isbmx And Not IsRemmed(currentcharpos,lsrc) Then
+'?Win32
 		If host.options.bracketmatching And Not IsRemmed(currentcharpos,lsrc) Then
-?
+'?
 			
 			limit = Min(lsrc.length,currentcharpos+2)
 			
@@ -5148,11 +5143,11 @@ Type TOpenCode Extends TToolPanel
 				currentcharpos:+1
 			Wend
 
-?Win32
+'?Win32
 			If Not otherchar And host.options.syntaxhighlight And host.options.bracketmatching
 				textarea.SendEditor(SCI_BRACEHIGHLIGHT, -1, -1)
 			EndIf
-?
+'?
 
 			If otherchar Then
 				
@@ -5179,11 +5174,11 @@ Type TOpenCode Extends TToolPanel
 									depth:-1
 								Else
 									style[MATCHING].format(textarea, othercharpos, 1)
-?Win32
+'?Win32
 									If host.options.syntaxhighlight And host.options.bracketmatching
 										textarea.SendEditor(SCI_BRACEHIGHLIGHT, currentcharpos, othercharpos)
 									EndIf
-?
+'?
 									currentbrackets[1] = othercharpos
 									UnlockTextArea textarea
 									Return
@@ -5393,7 +5388,6 @@ Type TOpenCode Extends TToolPanel
 			EndIf
 		EndIf
 ?
-
 		Return 1
 	End Function
 	
@@ -5407,7 +5401,9 @@ Type TOpenCode Extends TToolPanel
 					Case EVENT_GADGETACTION
 						'DebugLog "ACTION "+path
 						UpdateCode
+						'?win32
 						numlines=textarea.SendEditor(SCI_GETLINECOUNT)
+						'?
 						foldnl=0
 						
 					Case EVENT_GADGETSELECT
@@ -5424,7 +5420,7 @@ Type TOpenCode Extends TToolPanel
 	
 	Method ParseBmxNew(spos%=0, epos%=1, partial=False)
 		' levels=1..512 ie. 1000, LEVELBASE=1024, ?=2048, WHITEFLAG=4096, HEADERFLAG=8192
-?Win32
+'?Win32
 		Local fvl%, line%, level%, curline$, rc%, tk%, mk%, ak%, ek%, fk%, ef%
 		Local tke%, mke%, fke%, eke%, flags%, klen%, tpos%
 		If Not isbmx Then Return
@@ -5521,7 +5517,7 @@ Type TOpenCode Extends TToolPanel
 				EndIf
 			EndIf
 			
-			fk=curline.Find("function", 0)
+			fk=curline.Find("function", 0) ' add check for endmax2d
 			If fk>-1 And fk<rc
 				klen=8
 				If fk>-1 And curline[fk+klen]>32 Then fk=-1
@@ -5559,11 +5555,11 @@ Type TOpenCode Extends TToolPanel
 			EndIf
 			line:+1
 		Wend
-?
+'?
 	End Method
 	
 	Method ReadFold()
-?Win32
+'?Win32
 		Local found%, file$, p0%, p1%, line$, level$
 		Local stream:TStream=ReadFile(host.bmxpath+"/cfg/fold.txt")
 		If Not stream Then Return
@@ -5613,11 +5609,11 @@ Type TOpenCode Extends TToolPanel
 				textarea.SendEditor(SCI_SETFOLDEXPANDED, Int(line), 0)
 			EndIf
 		Next
-?
+'?
 	End Method
 	
 	Method WriteFold()
-?Win32
+'?Win32
 		Local file$, foldlines$, line$, maxfiles%=0
 		
 		Local stream:TStream=ReadFile(host.bmxpath+"/cfg/fold.txt")
@@ -5639,11 +5635,11 @@ Type TOpenCode Extends TToolPanel
 			WriteLine(stream, path+"|"+cursorpos+" "+cursorlen+"|"+foldlines+"|"+file)
 			CloseStream stream
 		EndIf
-?
+'?
 	End Method
 	
 	Method FoldAll()
-?Win32
+'?Win32
 		Local line$, curline$, value$, level%, header%, footer%, length%=0
 		ParseBmxNew()
 		
@@ -5678,11 +5674,11 @@ Type TOpenCode Extends TToolPanel
 				EndIf
 			EndIf
 		Next
-?
+'?
 	End Method
 	
 	Method UnfoldAll()
-?Win32
+'?Win32
 		Local line$, curline$, value$, level%, header%, footer%, length%=0
 		ParseBmxNew()
 		
@@ -5714,18 +5710,18 @@ Type TOpenCode Extends TToolPanel
 				Next
 			EndIf
 		Next
-?
+'?
 	End Method
 	
 	Method UpdateFold()
-?Win32
-		Local n:TScintillaEventData=TScintillaEventData(EventExtra()) ' folding
-		If host.options.codefold=False Then n.Code=0
+'?Win32
+		Local note:TScintillaEventData=TScintillaEventData(EventExtra()) ' folding
+		If host.options.codefold=False Then note.code=0
 		Local line%, value$, level%, header%, footer%, curline$, length%, levelclick%
 		
-		Select n.Code
+		Select note.code
 			Case SCN_MARGINCLICK
-				line=textarea.SendEditor(SCI_LINEFROMPOSITION, n.position, 0)
+				line=textarea.SendEditor(SCI_LINEFROMPOSITION, note.position, 0)
 				levelclick=textarea.SendEditor(SCI_GETFOLDLEVEL, line)
 				value=String(MapValueForKey(foldmap, String(line)))
 				length=0
@@ -5786,11 +5782,12 @@ Type TOpenCode Extends TToolPanel
 					
 				EndIf
 		End Select
-?
+		
+'?
 	End Method
 	
 	Method CursorHistory()
-?Win32
+'?Win32
 		Local id%=0, curline%=TextAreaCursor(textarea, TEXTAREA_LINES)
 		
 		If gotoflag=False And Abs(lastline-curline)>textarea.SendEditor(SCI_LINESONSCREEN)
@@ -5814,7 +5811,7 @@ Type TOpenCode Extends TToolPanel
 			cursorindex=CountList(scplist)
 			lastline=curline
 		EndIf
-?
+'?
 	End Method
 	
 	Method SetDirty( bool )
@@ -5855,6 +5852,260 @@ Type TOpenCode Extends TToolPanel
 			helpstring$=host.quickhelp.help(a$)
 			UpdateStatus	'host.setstatus helpstring$
 		EndIf
+	End Method
+	
+	Method getdocspath$(doc$)
+	
+		Select doc
+			Case "audio/audio playback" Return "brl.mod/audio"
+			Case "audio/audio samples" Return "brl.mod/audiosample"
+			'Case "audio/directsound audio" Return "brl.mod/directsoundaudio"
+			'Case "audio/freeaudio audio" Return "brl.mod/freeaudioaudio"
+			'Case "audio/ogg loader" Return "brl.mod/oggloader"
+			Case "audio/openal audio" Return "brl.mod/openalaudio"
+			'Case "audio/wav loader" Return "brl.mod/wavloader"
+			Case "audio/openal 1.1" Return "brl.mod/openal"
+			Case "miscellaneous/banks" Return "brl.mod/bank"
+			Case "miscellaneous/zlib compression" Return "pub.mod/zlib"
+			Case "streams/bank streams" Return "brl.mod/bankstream"
+			Case "streams/endian streams" Return "brl.mod/endianstream"
+			Case "streams/ram streams" Return "brl.mod/ramstream"
+			Case "streams/socket streams" Return "brl.mod/socketstream"
+			Case "streams/streams" Return "brl.mod/stream"
+			Case "streams/text streams" Return "brl.mod/textstream"
+			Case "basic/blitzmax runtime" Return "brl.mod/blitz"
+			Case "basic/reflection" Return "brl.mod/reflection"
+			Case "basic/basic compatibility" Return "brl.mod/retro"
+			'Case "graphics/bmp loader" Return "brl.mod/bmploader"
+			Case "graphics/direct3d7 max2d" Return "brl.mod/d3d7max2d"
+			Case "graphics/direct3d9 max2d" Return "brl.mod/d3d9max2d"
+			Case "graphics/opengl graphics" Return "brl.mod/glgraphics"
+			Case "graphics/opengl max2d" Return "brl.mod/glmax2d"
+			Case "graphics/graphics" Return "brl.mod/graphics"
+			Case "graphics/jpg loader" Return "brl.mod/jpgloader"
+			Case "graphics/max2d" Return "brl.mod/max2d"
+			Case "graphics/pixmaps" Return "brl.mod/pixmap"
+			Case "graphics/png loader" Return "brl.mod/pngloader"
+			'Case "graphics/tga loader" Return "brl.mod/tgaloader"
+			'Case "graphics/opengl 1.1" Return "pub.mod/opengl"
+			Case "events/events" Return "brl.mod/event"
+			Case "events/event queue" Return "brl.mod/eventqueue"
+			Case "events/hook functions" Return "brl.mod/hook"
+			Case "events/timers" Return "brl.mod/timer"
+			Case "system/file system" Return "brl.mod/filesystem"
+			Case "system/lua scripting" Return "brl.mod/maxlua"
+			Case "system/standardio" Return "brl.mod/standardio"
+			Case "system/system" Return "brl.mod/system"
+			Case "system/threads" Return "brl.mod/threads"
+			Case "networking/gamenet" Return "brl.mod/gnet"
+			Case "networking/sockets" Return "brl.mod/socket"
+			'Case "user input/key codes" Return "brl.mod/keycodes"
+			Case "user input/polled input" Return "brl.mod/polledinput"
+			Case "user input/joystick" Return "pub.mod/freejoy"
+			Case "data structures/linked lists" Return "brl.mod/linkedlist"
+			Case "data structures/maps" Return "brl.mod/map"
+			Case "math/math" Return "brl.mod/math"
+			Case "math/random numbers" Return "brl.mod/random"
+			'Case "maxgui/drivers" Return "maxgui.mod/drivers"
+			Case "maxgui/localization" Return "maxgui.mod/localization"
+			Case "maxgui/maxgui" Return "maxgui.mod/maxgui"
+			Case "maxgui/proxy gadgets" Return "maxgui.mod/proxygadgets"
+			Case "other/lua core" Return "pub.mod/lua"			
+		EndSelect
+		
+	End Method
+	
+	Method getimports%(file$)
+	
+		Local found%, line$, pos%, cpos%, rpos%, epos%, rflag%
+		Local ipos%, qpos%, spos%, lpos%, imp$, str$, inlist%
+		Local stream:TStream=ReadFile(file)
+		If Not stream Then Return
+		found=False
+		While Not Eof(stream)
+			line=ReadLine(stream).ToLower()
+			cpos=line.Find("'", 0)
+			rpos=line.Find("rem", 0)
+			epos=line.Find("end", 0)
+			If rpos+3<line.length And IsAlphaNumeric(line[rpos+3])=True Then rpos=-1 ' is token
+			If epos>-1 And rpos>-1 And epos<rpos Then rpos=-1 Else epos=-1 ' is endrem
+			If rpos>-1 And (cpos=-1 Or cpos>rpos) Then rflag=True
+			If epos>-1 And (cpos=-1 Or cpos>epos) Then rflag=False
+			If rflag=False
+				ipos=line.Find("import", 0)
+				If ipos=-1 Then ipos=line.Find("include", 0)
+				If ipos>-1 And (cpos=-1 Or cpos>ipos)
+					qpos=line.Find("~q", 0)
+					spos=line.Find("~q", qpos+1)
+					If qpos>-1 And spos>-1
+						lpos=file.FindLast("/", 0) ' resolve ../
+						imp$=file[..lpos+1]+line[qpos+1..spos]
+						inlist=False
+						For str$=EachIn importlist
+							If str=imp Then inlist=True ; Exit
+						Next
+						If inlist=False Then ListAddLast(importlist, imp)
+					EndIf
+				EndIf
+			EndIf
+		Wend
+		CloseStream stream
+		
+	End Method
+	
+	Method getfunctionline%(file$, func$, dot$)
+	
+		Local found%, line$, pos%, cpos%, rpos%, erpos%, rflag%=0
+		Local xpos%, expos%, xflag%=0, tpos%, etpos%, tflag%=0, fpos%, dpos%, count%, err%=0
+		Local stream:TStream=ReadFile(file)
+		If Not stream Then Return -1
+		found=False
+		While Not Eof(stream) ' add type search, maybe function in type too...
+			line=ReadLine(stream).ToLower()
+			If line.length=1 Then err:+1 Else err:-1
+			If err>500 Then count=-1 ; Exit
+			cpos=line.Find("'", 0)
+			rpos=line.Find("rem", 0)
+			erpos=line.Find("end", 0)
+			If rpos+3<line.length And IsAlphaNumeric(line[rpos+3])=True Then rpos=-1 ' is token
+			If rpos>0 And IsAlphaNumeric(line[rpos-1])=True Then rpos=-1
+			If erpos>0 And erpos+3<line.length And IsAlphaNumeric(line[erpos+3])=True Then erpos=-1
+			If erpos>0 And IsAlphaNumeric(line[erpos-1])=True Then erpos=-1
+			If erpos>-1 And rpos=-1 Then erpos=-1 ' not endrem
+			If erpos>-1 And rpos>-1 And erpos<rpos Then rpos=-1 ' is endrem
+			If erpos=-1 Then erpos=line.Find("endrem", 0)
+			If rpos>-1 And (cpos=-1 Or cpos>rpos) Then rflag=True
+			If erpos>-1 And (cpos=-1 Or cpos>erpos) Then rflag=False
+			If rflag=False
+				xpos=line.Find("extern", 0)
+				expos=line.Find("end", 0)
+				If xpos+6<line.length And IsAlphaNumeric(line[xpos+6])=True Then xpos=-1 ' is token
+				If xpos>0 And IsAlphaNumeric(line[xpos-1])=True Then xpos=-1
+				If expos>0 And expos+3<line.length And IsAlphaNumeric(line[expos+3])=True Then expos=-1
+				If expos>0 And IsAlphaNumeric(line[expos-1])=True Then expos=-1
+				If expos>-1 And xpos=-1 Then expos=-1 ' not endextern
+				If expos>-1 And xpos>-1 And expos<xpos Then xpos=-1 ' is endextern
+				If expos=-1 Then expos=line.Find("endextern", 0)
+				If xpos>-1 And (cpos=-1 Or cpos>xpos) Then xflag=True
+				If expos>-1 And (cpos=-1 Or cpos>expos) Then xflag=False
+				If xflag=False
+					tpos=line.Find("type", 0)
+					etpos=line.Find("end", 0)
+					If tpos+4<line.length And IsAlphaNumeric(line[tpos+4])=True Then tpos=-1 ' is token
+					If tpos>0 And IsAlphaNumeric(line[tpos-1])=True Then tpos=-1
+					If etpos>0 And etpos+3<line.length And IsAlphaNumeric(line[etpos+3])=True Then etpos=-1
+					If etpos>0 And IsAlphaNumeric(line[etpos-1])=True Then etpos=-1
+					If etpos>-1 And tpos=-1 Then etpos=-1 ' not endtype
+					If etpos>-1 And tpos>-1 And etpos<tpos Then tpos=-1 ' is endtype
+					If etpos=-1 Then etpos=line.Find("endtype", 0)
+					If tpos>-1 And (cpos=-1 Or cpos>tpos) Then tflag=True
+					If etpos>-1 And (cpos=-1 Or cpos>etpos) Then tflag=False
+					If tflag=True And tpos>-1
+						'DebugLog " dot="+dot+" rflag="+rflag+" line="+line
+						pos=line.Find(func.ToLower(), 0)
+						If pos>0 And IsAlphaNumeric(line[pos-1])=True Then pos=-1
+						If pos>0 And pos+func.length<line.length And IsAlphaNumeric(line[pos+func.length])=True Then pos=-1
+						If pos>-1 Then found=True ; Exit
+					EndIf
+					If tflag=True And dot="."
+						fpos=line.Find("function", 0)
+						If fpos=-1 Then fpos=line.Find("method", 0)
+						If fpos>-1 And (cpos=-1 Or cpos>fpos)
+							pos=line.Find(func.ToLower(), 0)
+							dpos=line.Find(":", 0)
+							If dpos>-1 And pos>dpos Then pos=-1
+							If pos>0 And IsAlphaNumeric(line[pos-1])=True Then pos=-1
+							If pos>0 And pos+func.length<line.length And IsAlphaNumeric(line[pos+func.length])=True Then pos=-1
+							If pos>-1 Then found=True ; Exit
+						EndIf
+					EndIf
+					If tflag=False And dot<>"."
+						fpos=line.Find("function", 0)
+						If fpos>-1 And (cpos=-1 Or cpos>fpos)
+							pos=line.Find(func.ToLower(), 0)
+							dpos=line.Find(":", 0)
+							If dpos>-1 And pos>dpos Then pos=-1
+							If pos>0 And IsAlphaNumeric(line[pos-1])=True Then pos=-1
+							If pos>0 And pos+func.length<line.length And IsAlphaNumeric(line[pos+func.length])=True Then pos=-1
+							If pos>-1 Then found=True ; Exit
+						EndIf
+					EndIf
+				EndIf
+			Else
+				fpos=line.Find("keyword:", 0)
+				If fpos>-1
+					pos=line.Find(func.ToLower(), 0)
+					If pos>-1 And IsAlphaNumeric(line[pos+func.length])=False Then found=True ; Exit
+				EndIf
+			EndIf
+			count:+1
+		Wend
+		If found=False Then count=-1
+		CloseStream stream
+		Return count
+		
+	End Method
+	
+	Method SourceHelp()
+	
+		If Not host.quickhelp Return
+		Local cp%=TextAreaCursor(textarea)
+		Local aw$=WordAtPos(cleansrc, cp)
+		If aw=helpcmd
+			Local fp$, pe%, ps%, mn$, pd%, count%, code:TOpenCode, ln$, pos%, str$, inc%, temp%
+			Local ls$=host.quickhelp.link(aw$).ToLower()
+			ClearList importlist
+			If ls
+				If ls[..5]="/docs"
+					pe=19 ; temp=0
+					For inc=0 To 3
+						pe=ls.Find("/", pe+1)
+						If pe=-1 Then Exit
+						temp:+1
+					Next
+					If temp=3
+						ps=ls.Find("/", 19)
+						ps=ls.Find("/", ps+1)
+					Else
+						ps=ls.FindLast("/", 0)
+					EndIf
+					mn$=getdocspath(ls[19..ps])
+					pd=mn.Find("/", 0)
+					fp$=host.bmxpath+"/mod/"+mn+".mod"+mn[pd..]+".bmx"
+					ListAddLast(importlist, fp)
+				ElseIf ls[..4]="/mod"
+					pe=ls.Find("/doc", 0)
+					ps=ls[..pe].FindLast("/", 0)
+					pd=ls[..pe].FindLast(".", 0)
+					fp$=host.bmxpath+ls[..pe]+ls[ps..pd]+".bmx"
+					ListAddLast(importlist, fp)
+				EndIf
+				getimports(fp)
+				For inc=0 To 9 ' recursive to 10 levels
+					temp=CountList(importlist)
+					For str$=EachIn importlist
+						getimports(str)
+					Next
+					If temp=CountList(importlist) Then Exit
+				Next
+				For str$=EachIn importlist
+					count=getfunctionline(str, aw, Chr(cleansrc[cp-1]))
+					'DebugLog "ls="+ls+" str="+str+" aw="+aw+" count="+count+" dot="+Chr(cleansrc[cp-1])
+					If count>-1
+						code=host.OpenSource(str)
+						ln$=TextAreaText(code.textarea, count, 0, TEXTAREA_LINES)
+						pos=TextAreaChar(code.textarea, count)+ln.Find(aw, 0)
+						SelectTextAreaText code.textarea, pos, aw.length
+						Exit
+					EndIf
+				Next
+			EndIf
+		Else
+			helpcmd=aw$
+			helpstring$=host.quickhelp.help(aw$)
+			UpdateStatus	'host.setstatus helpstring$
+		EndIf
+		
 	End Method
 
 	Method Find()
@@ -6072,13 +6323,13 @@ Type TOpenCode Extends TToolPanel
 				Else
 					isbmx=(ex.ToLower()="bmx")
 					ishtml=(ex.ToLower()="html")
-?Not Win32
-					isc=(ex.ToLower()="c")
-					iscpp=(ex.ToLower()="cpp" Or ex.ToLower()="cxx")
-?Win32
+'?Not Win32
+'					isc=(ex.ToLower()="c")
+'					iscpp=(ex.ToLower()="cpp" Or ex.ToLower()="cxx")
+'?Win32
 					isc=(ex.ToLower()="c" Or ex.ToLower()="h")
 					iscpp=(ex.ToLower()="cpp" Or ex.ToLower()="cxx" Or ex.ToLower()="hpp")
-?
+'?
 				EndIf
 				SaveSource(file$)
 				RefreshStyle()
@@ -6110,7 +6361,9 @@ Type TOpenCode Extends TToolPanel
 				Undo()
 				If host.options.codefold
 					foldflag=True
+					'?win32
 					foldnl=numlines-textarea.SendEditor(SCI_GETLINECOUNT)
+					'?
 					'DebugLog "foldnl="+foldnl+" numlines="+numlines+" nl="+textarea.SendEditor(SCI_GETLINECOUNT)
 					ParseBmxNew(textarea.LineAt(oldpos), textarea.LineAt(cursorpos)+1, True)
 				EndIf
@@ -6118,7 +6371,9 @@ Type TOpenCode Extends TToolPanel
 				Redo()
 				If host.options.codefold
 					foldflag=True
+					'?win32
 					foldnl=numlines-textarea.SendEditor(SCI_GETLINECOUNT)
+					'?
 					ParseBmxNew(textarea.LineAt(oldpos), textarea.LineAt(cursorpos)+1, True)
 				EndIf
 			Case TOOLREFRESH
@@ -6129,7 +6384,9 @@ Type TOpenCode Extends TToolPanel
 				UpdateCode()
 				If host.options.codefold
 					foldflag=True
+					'?win32
 					foldnl=numlines-textarea.SendEditor(SCI_GETLINECOUNT)
+					'?
 					ParseBmxNew(textarea.LineAt(oldpos), textarea.LineAt(cursorpos)+1, True)
 				EndIf
 			Case TOOLCOPY
@@ -6140,7 +6397,9 @@ Type TOpenCode Extends TToolPanel
 				UpdateCode()
 				If host.options.codefold
 					foldflag=True
+					'?win32
 					foldnl=numlines-textarea.SendEditor(SCI_GETLINECOUNT)
+					'?
 					ParseBmxNew(textarea.LineAt(oldpos), textarea.LineAt(cursorpos)+1, True)
 				EndIf
 			Case TOOLSELECTALL
@@ -6158,6 +6417,7 @@ Type TOpenCode Extends TToolPanel
 	Function CreateEditMenu:TGadget()
 		Local	edit:TGadget = CreateMenu("{{popup_edit}}",0,Null)
 		CreateMenu "{{popup_edit_quickhelp}}",MENUQUICKHELP,edit
+		CreateMenu "{{popup_edit_sourcehelp}}",MENUSOURCEHELP,edit
 		CreateMenu "",0,edit
 		CreateMenu "{{popup_edit_cut}}",MENUCUT,edit
 		CreateMenu "{{popup_edit_copy}}",MENUCOPY,edit
@@ -6210,11 +6470,11 @@ Type TOpenCode Extends TToolPanel
 		code.path=host.FullPath(path)
 		code.editmenu=CreateEditMenu()
 		codeplay.addpanel(code)
-?Not Win32
-		code.textarea=CreateTextArea(0,0,ClientWidth(code.panel),ClientHeight(code.panel),code.panel,0)
-?Win32
-		code.textarea=CreateScintillaArea(0,0,ClientWidth(code.panel),ClientHeight(code.panel),code.panel,0)
-?
+'?Not Win32
+'		code.textarea=CreateTextArea(0,0,ClientWidth(code.panel),ClientHeight(code.panel),code.panel,0)
+'?Win32
+		code.textarea=CreateScintillaTextArea(0,0,ClientWidth(code.panel),ClientHeight(code.panel),code.panel,0)
+'?
 		DelocalizeGadget code.textarea
 		SetGadgetFilter code.textarea,code.FilterKey,code
 		SetTextAreaText code.textarea,"~n"
@@ -6245,12 +6505,12 @@ Type TOpenCode Extends TToolPanel
 		If code.iscpp Or code.isc
 			code.helpmap=CPPKEYWORDS
 		EndIf
-?Win32
+'?Win32
 		code.textarea.SendEditor(SCI_SetUndoCollection, 1, 0)  ' turn on saving of undo/redo actions
 		code.textarea.SendEditor(SCI_EmptyUndoBuffer, 0, 0) ' clear the undo/redo action list
 		code.textarea.SendEditor(SCI_SetSavePoint, 0, 0) ' set a save point
 		code.numlines=code.textarea.SendEditor(SCI_GETLINECOUNT)
-?
+'?
 		code.RefreshStyle()
 		ListAddLast code.scplist, String(0)
 		ListAddLast code.ecplist, String(0)
@@ -7307,6 +7567,7 @@ Type TCodePlay
 		CreateMenu "{{menu_help_back}}",MENUBACK,help
 		CreateMenu "{{menu_help_forward}}",MENUFORWARD,help
 		CreateMenu "{{menu_help_quickhelp}}",MENUQUICKHELP,help,KEY_F1
+		CreateMenu "{{menu_help_sourcehelp}}",MENUSOURCEHELP,help,KEY_F2
 		CreateMenu "{{menu_help_aboutmaxide}}",MENUABOUT,help
 		
 		If quickenabled CheckMenu quickenable
@@ -7546,13 +7807,16 @@ Type TCodePlay
 				SelectPanel panels[index]
 			
 			Case MENUFOLD
-				TOpenCode(currentpanel).FoldAll
+				If TOpenCode(currentpanel) Then TOpenCode(currentpanel).FoldAll
 			
 			Case MENUUNFOLD
-				TOpenCode(currentpanel).UnfoldAll
+				If TOpenCode(currentpanel) Then TOpenCode(currentpanel).UnfoldAll
 			
 			Case MENUQUICKHELP
 				currentpanel.invoke TOOLHELP
+				
+			Case MENUSOURCEHELP
+				If TOpenCode(currentpanel) Then TOpenCode(currentpanel).SourceHelp
 			
 			Case MENUHOME
 				helppanel.Home()
@@ -7645,7 +7909,7 @@ Type TCodePlay
 							If currentpanel=helppanel
 								helppanel.Back;SelectPanel helppanel
 							Else
-?Win32
+'?Win32
 								Local id%=0, los%=0, startpos$, endpos$
 								Local pan:TOpenCode=TOpenCode(currentpanel)
 								If pan.cursorindex>1
@@ -7665,14 +7929,14 @@ Type TCodePlay
 										pan.lastline=TextAreaCursor(pan.textarea, TEXTAREA_LINES)
 									EndIf
 								Next
-?
+'?
 							EndIf
 							
 							Case TB_FORWARDS
 							If currentpanel=helppanel
 								helppanel.Forward;SelectPanel helppanel
 							Else
-?Win32
+'?Win32
 								Local id%=0, los%=0, startpos$, endpos$
 								Local pan:TOpenCode=TOpenCode(currentpanel)
 								If pan.cursorindex<CountList(pan.scplist)
@@ -7692,7 +7956,7 @@ Type TCodePlay
 										pan.lastline=TextAreaCursor(pan.textarea, TEXTAREA_LINES)
 									EndIf
 								Next
-?
+'?
 							EndIf
 							
 						End Select

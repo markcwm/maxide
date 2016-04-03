@@ -40,7 +40,7 @@ Type NotifyHeader
 	Field code:Int
 EndType
 
-Type SCNotification
+Type TSCNotification
 	'Field NMHDR:NotifyHeader
 	Field hwndFrom:Int
 	Field idFrom:Int
@@ -50,7 +50,7 @@ Type SCNotification
 	Field ch:Int				' SCN_CHARADDED, SCN_KEY
 	Field modifiers:Int			' SCN_KEY
 	Field modificationType:Int	' SCN_MODIFIED
-	Field text:Byte Ptr				' SCN_MODIFIED
+	Field Text:Byte Ptr				' SCN_MODIFIED
 	Field length:Int			' SCN_MODIFIED
 	Field linesAdded:Int		' SCN_MODIFIED
 	Field message:Int			' SCN_MACRORECORD
@@ -85,7 +85,7 @@ Type TScintillaEventData
 	Field ch:Int				' SCN_CHARADDED, SCN_KEY
 	Field modifiers:Int			' SCN_KEY
 	Field modificationType:Int	' SCN_MODIFIED
-	Field text:String				' SCN_MODIFIED
+	Field Text:String				' SCN_MODIFIED
 	Field length:Int			' SCN_MODIFIED
 	Field linesAdded:Int		' SCN_MODIFIED
 	Field message:Int			' SCN_MACRORECORD
@@ -99,15 +99,15 @@ Type TScintillaEventData
 	Field x:Int				' SCN_DWELLSTART, SCN_DWELLEND
 	Field y:Int				' SCN_DWELLSTART, SCN_DWELLEND
 	
-	Function From:TScintillaEventData(Note:SCNotification)
+	Function From:TScintillaEventData(Note:TSCNotification)
 		Local data:TScintillaEventData = New TScintillaEventData
 		data.code = note.code
 		data.position = note.position
 		data.ch = note.ch
 		data.modifiers = note.modifiers
 		data.modificationType = note.modificationType
-		data.text = String.FromCString(note.text)
-		data.text = data.text.Replace(Chr(13),Chr(10))[..note.length]
+		data.Text = String.FromCString(note.Text)
+		data.Text = data.Text.Replace(Chr(13),Chr(10))[..note.length]
 		data.length = note.length
 		data.linesadded = note.linesadded
 		data.message = note.message
