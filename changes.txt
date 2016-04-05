@@ -41,6 +41,7 @@ Changes log (markcwm/munch - Feb 2016):
 - custom code folding for type/method/function/extern
 - fold all and unfold all menu items
 - f2 source help for function and type keywords
+- identifiers syntax highlighting color - panel in ide options
 
 To do:
 - include/import autocomplete
